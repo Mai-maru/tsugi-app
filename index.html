@@ -1736,7 +1736,10 @@ function saveApp(id){
     person={id:uid(), name, type:"other", years:{}, bonus:0, phone:document.getElementById("af_phone").value.trim(), note:"申込から自動登録"};
     DB.people.push(person);
   }
-  const a=id?DB.applications.find(x=>x.id===id):{id:uid(), entries:[]};
+  // 既存の同一人物×同一公演の申込があれば統合（二重申込による過剰振り分けを防ぐ）
+  let a=id?DB.applications.find(x=>x.id===id):DB.applications.find(x=>x.showId===showId && x.personId===person.id);
+  if(!id && a) alert(`${name}様はこの公演に申込済みのため、既存の申込に統合します。`);
+  if(!a) a={id:uid(), entries:[]};
   a.showId=showId; a.personId=person.id; a.name=name;
   a.phone=document.getElementById("af_phone").value.trim();
   a.support=Number(document.getElementById("af_support").value)||0;
@@ -1748,7 +1751,7 @@ function saveApp(id){
     const old=(a.entries||[]).find(o=>o.perfId===ne.perfId);
     return old?Object.assign(old,{count:ne.count}):{id:uid(), perfId:ne.perfId, count:ne.count, status:"pending", transferTo:null, refundAmount:null, refundDone:false, seats:[]};
   });
-  if(!id) DB.applications.push(a);
+  if(!DB.applications.includes(a)) DB.applications.push(a);
   if(person.bank===undefined||person.bank==="") person.bank=a.bank;
   closeDialog(); rerender();
 }
@@ -1811,6 +1814,114 @@ function otherRequestLabels(show, personId, excludePerfId){
     }
   return out.sort((a,b)=>a.d.localeCompare(b.d)).map(x=>x.label);
 }
+/* ---------- 席種ごとの割当（配席より先に席種だけ確定する運用のため） ---------- */
+const CLASS_ORDER=["SS","S+","S","A","B"];
+function classesOfPerf(perf){
+  const cc=perf?.classCaps||null;
+  if(!cc) return null;
+  return CLASS_ORDER.filter(c=>cc[c]!=null).concat(Object.keys(cc).filter(c=>!CLASS_ORDER.includes(c)));
+}
+function classAllocText(en){
+  if(!en.classAlloc) return "";
+  const ks=Object.keys(en.classAlloc).filter(k=>en.classAlloc[k]>0);
+  ks.sort((a,b)=>(CLASS_ORDER.indexOf(a)+99)%99-(CLASS_ORDER.indexOf(b)+99)%99);
+  return ks.map(k=>`${k}${en.classAlloc[k]}`).join("・");
+}
+function classTotalsOf(show,perf){
+  const t={};
+  for(const {en} of entriesOfPerf(show,perf.id).filter(x=>["ok","transferred"].includes(x.en.status)))
+    for(const [c,n] of Object.entries(en.classAlloc||{})) t[c]=(t[c]||0)+Number(n);
+  return t;
+}
+function openClassAllocDialog(perfId){
+  const show=allocShow();
+  const perf=findPerf(show,perfId);
+  const classes=classesOfPerf(perf);
+  if(!classes){ alert("この回には席種別の枚数（内訳）が登録されていません。"); return; }
+  const list=entriesOfPerf(show,perf.id).filter(x=>["ok","transferred"].includes(x.en.status))
+    .map(x=>{ x.score=scoreOf(x.app.personId,x.app)+bdayBonus(DB.people.find(p=>p.id===x.app.personId),perf)+premiereBonus(DB.people.find(p=>p.id===x.app.personId),perf,show); return x; })
+    .sort((a,b)=>b.score-a.score);
+  if(!list.length){ alert("この回には取次確定（○）の方がまだいません。先に振り分けで確定してください。"); return; }
+  const cc=perf.classCaps;
+  const rows=list.map(({app,en,score})=>`<tr data-en="${en.id}" data-app="${app.id}" data-count="${en.count}">
+      <td><b>${esc(personName(app))}</b> <span class="muted">${en.count}枚・${score}点</span></td>
+      ${classes.map(c=>`<td style="text-align:center"><input type="number" class="ca-in" data-cls="${c}" min="0" max="${en.count}"
+        value="${en.classAlloc?.[c]||""}" style="width:52px;text-align:center" oninput="caRecalc()"></td>`).join("")}
+      <td class="ca-row-status" style="text-align:center"></td>
+    </tr>`).join("");
+  showDialog(`🎟 席種の割当 ─ ${perfLabel(perf)}`, `
+    <p class="muted">配席（具体的な席位置）より先に、確定者へ席種だけを割り当てます。割り当てた席種はご案内文に差し込まれます。上から優先順です。</p>
+    <div class="flex" style="margin:6px 0">
+      <button class="btn mini gold" onclick="caAuto()">✨ 優先順に自動割当</button>
+      <button class="btn mini ghost" onclick="caClear()">クリア</button>
+      <span class="muted">良い席種から優先順に自動で埋めます（手直し自由）</span>
+    </div>
+    <div style="overflow-x:auto"><table class="list" id="caTable">
+      <tr><th>お名前</th>${classes.map(c=>`<th style="text-align:center">${c}席<br><span id="ca-cap-${esc(c)}" style="font-weight:400"></span></th>`).join("")}<th>状態</th></tr>
+      ${rows}
+    </table></div>
+    <div id="caSummary" class="notice info" style="margin-top:8px"></div>
+    <div class="flex" style="margin-top:10px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+      <button class="btn" onclick="caSave('${perfId}')">保存</button>
+    </div>`, ()=>{ window.__caCtx={classes, caps:cc}; caRecalc(); });
+}
+function caRecalc(){
+  const {classes, caps}=window.__caCtx;
+  const totals={};
+  let allOk=true;
+  document.querySelectorAll("#caTable tr[data-en]").forEach(tr=>{
+    let sum=0;
+    tr.querySelectorAll(".ca-in").forEach(i=>{ const v=Number(i.value)||0; sum+=v; totals[i.dataset.cls]=(totals[i.dataset.cls]||0)+v; });
+    const need=Number(tr.dataset.count);
+    const st=tr.querySelector(".ca-row-status");
+    if(sum===0){ st.textContent="未割当"; st.style.color="#999"; allOk=false; }
+    else if(sum===need){ st.textContent="✓"; st.style.color="var(--ok)"; }
+    else { st.textContent=`${sum}/${need}枚`; st.style.color=sum>need?"var(--ng)":"var(--warn)"; allOk=false; }
+  });
+  let over=false;
+  for(const c of classes){
+    const el=document.getElementById("ca-cap-"+c);
+    const u=totals[c]||0, cap=caps[c]||0;
+    el.textContent=`${u}/${cap}`;
+    el.style.color=u>cap?"var(--ng)":(u===cap?"var(--ok)":"inherit");
+    if(u>cap) over=true;
+  }
+  document.getElementById("caSummary").innerHTML=
+    (over?`<b style="color:var(--ng)">⚠ 席種の枠を超えています。</b>　`:"")+
+    (allOk&&!over?`✓ 全員ぶん割当済みです。保存してください。`:`枠：${classes.map(c=>`${c} ${totals[c]||0}/${caps[c]||0}`).join("　")}`);
+}
+function caAuto(){
+  const {classes, caps}=window.__caCtx;
+  const remain=Object.fromEntries(classes.map(c=>[c, caps[c]||0]));
+  document.querySelectorAll("#caTable tr[data-en]").forEach(tr=>{
+    let need=Number(tr.dataset.count);
+    tr.querySelectorAll(".ca-in").forEach(i=>i.value="");
+    for(const c of classes){
+      if(need<=0) break;
+      const take=Math.min(need, remain[c]);
+      if(take>0){
+        tr.querySelector(`.ca-in[data-cls="${c}"]`).value=take;
+        remain[c]-=take; need-=take;
+      }
+    }
+  });
+  caRecalc();
+}
+function caClear(){
+  document.querySelectorAll("#caTable .ca-in").forEach(i=>i.value="");
+  caRecalc();
+}
+function caSave(perfId){
+  document.querySelectorAll("#caTable tr[data-en]").forEach(tr=>{
+    const {en}=findEntry(tr.dataset.app, tr.dataset.en);
+    const alloc={};
+    tr.querySelectorAll(".ca-in").forEach(i=>{ const v=Number(i.value)||0; if(v>0) alloc[i.dataset.cls]=v; });
+    en.classAlloc=Object.keys(alloc).length?alloc:null;
+  });
+  closeDialog(); rerender();
+}
+
 function toggleAllocCheck(perfId){
   if(allocChecked.has(perfId)) allocChecked.delete(perfId); else allocChecked.add(perfId);
   renderAlloc();
@@ -1855,7 +1966,7 @@ function renderAlloc(){
       ${chk}<div class="d">${perfShort(p)} ${premTag}</div>
       <div class="muted">付与 ${p.capacity==null?"未定":cap+"枚"} ／ 申込 ${dem}枚 ／ 確定 ${ok}枚</div>
       ${cap?`<div class="bar"><i style="width:${Math.min(dem/cap*100,100)}%;background:${over?"var(--ng)":"var(--ok)"}"></i></div>
-      <div style="margin-top:4px">${over?`<span class="tag st-ng">超過 +${dem-cap}</span>`:`<span class="tag st-ok">空き ${cap-dem}</span>`}
+      <div style="margin-top:4px">${ok>cap?`<span class="tag st-ng">⚠確定超過 +${ok-cap}</span>`:""}${over?`<span class="tag st-ng">申込超過 +${dem-cap}</span>`:`<span class="tag st-ok">空き ${cap-dem}</span>`}
       ${remaining>0?`<span class="tag st-transfer" title="確定・案○を除いた残り">残枠${remaining}</span>`:""}</div>`:""}
     </div>`;
   }).join("");
@@ -1927,7 +2038,7 @@ function allocDetailHtml(show,p){
       <td style="text-align:center"><b>${score}</b>${bb?`<span style="color:#c2185b;font-size:11px">(🎂+${bb})</span>`:""}${pb?`<span style="color:#a4456e;font-size:11px">(🎀+${pb})</span>`:""}${person?`<br><span class="muted" style="font-size:10.5px">${person.type==="member"?"在籍"+fcYears(person)+"年":""}</span>`:""}</td>
       <td style="text-align:center">${app.support?yen(app.support):"−"}</td>
       <td style="text-align:center">${okTotal}枚</td>
-      <td><span class="tag st-${en.status==="proposed"?"proposed":en.status==="proposedNg"?"ng":({pending:"pending",ok:"ok",ng:"ng",transfer:"transfer",transferred:"ok",refund:"refund",refunded:"done"}[en.status]||"pending")}">${ST_LABEL[en.status]}</span></td>
+      <td><span class="tag st-${en.status==="proposed"?"proposed":en.status==="proposedNg"?"ng":({pending:"pending",ok:"ok",ng:"ng",transfer:"transfer",transferred:"ok",refund:"refund",refunded:"done"}[en.status]||"pending")}">${ST_LABEL[en.status]}</span>${en.classAlloc?`<br><span class="tag" style="background:#ece4f5;color:#5b4a9e">🎟${classAllocText(en)}</span>`:""}</td>
       <td class="no-print">${actions}</td>
     </tr>`;
   }).join("");
@@ -1938,10 +2049,16 @@ function allocDetailHtml(show,p){
     <div class="spread">
       <h3 style="margin:0">📋 ${perfLabel(p)} ${prem?`<span class="tag" style="background:#f5e6f0;color:#a4456e">🎀${prem}</span>`:""} の申込者（優先順）</h3>
       <div class="flex no-print">
+        ${classesOfPerf(p)?`<button class="btn sub" onclick="openClassAllocDialog('${p.id}')">🎟 席種の割当</button>`:""}
         ${hasProposal?`<button class="btn" onclick="confirmProposals('${p.id}')">この回の案をすべて確定する</button>`:""}
       </div>
     </div>
     <p class="muted">付与 ${p.capacity==null?"未定":cap+"枚"} ／ 確定済み ${confirmedCount(show,p.id)}枚${remaining!=null?` ／ 残枠 ${remaining}枚`:""}${prem?` ／ 🎀${prem}のため親類・お客様・スタッフに＋${DB.settings.weights.premiere||0}点`:""}</p>
+    ${confirmedCount(show,p.id)>cap&&p.capacity!=null?`<div class="notice warn"><b>⚠ 確定が付与枚数を${confirmedCount(show,p.id)-cap}枚超えています。</b>枚数の調整（直接編集／👤1枚のみで○）や振替案内で整えてください。</div>`:""}
+    ${(()=>{const cls=classesOfPerf(p); if(!cls) return "";
+      const t=classTotalsOf(show,p);
+      const assigned=Object.values(t).reduce((s,n)=>s+n,0);
+      return `<p class="muted">🎟 席種割当：${cls.map(c=>{const u=t[c]||0,cc=p.classCaps[c]||0;return `<b style="color:${u>cc?"var(--ng)":u===cc?"var(--ok)":"inherit"}">${c} ${u}/${cc}</b>`;}).join("　")}${assigned===0?"（未割当 ─「🎟席種の割当」からどうぞ）":""}</p>`;})()}
     ${promoteNotice}
     <div class="flex no-print" style="margin:6px 0">
       <label style="font-size:12px"><input type="checkbox" class="chk" onchange="document.querySelectorAll('.alloc-row-chk').forEach(c=>c.checked=this.checked)"> 全選択</label>
@@ -1961,8 +2078,18 @@ function findEntry(appId,enId){
   const app=DB.applications.find(a=>a.id===appId);
   return {app, en:app.entries.find(e=>e.id===enId)};
 }
+// 確定で付与枚数を超える場合は警告（超過の黙認を防ぐ）
+function capWarn(show,perfId,addCount){
+  const p=findPerf(show,perfId);
+  if(!p||p.capacity==null) return true;
+  const after=confirmedCount(show,perfId)+addCount;
+  if(after>Number(p.capacity))
+    return confirm(`⚠ ${perfLabel(p)} は付与${p.capacity}枚に対し、確定が${after}枚（${after-Number(p.capacity)}枚超過）になります。\nそれでも確定しますか？`);
+  return true;
+}
 function setEntryStatus(appId,enId,st){
-  const {en}=findEntry(appId,enId);
+  const {app,en}=findEntry(appId,enId);
+  if(st==="ok" && en.status!=="ok" && !capWarn(showOf(app),en.perfId,Number(en.count))) return;
   en.status=st;
   if(st!=="transferred") en.transferTo=null;
   rerender();
@@ -1973,6 +2100,22 @@ function bulkSetStatus(st){
   if(!chks.length){ alert("行のチェックボックスで対象を選んでください"); return; }
   const label={ok:"○確定", ng:"×不可", pending:"未処理に戻す", refund:"返金対象へ"}[st]||st;
   if(!confirm(`チェックした ${chks.length}件を「${label}」にしますか？`)) return;
+  if(st==="ok"){
+    // 回ごとに確定超過にならないかチェック
+    const show=allocShow();
+    const add={};
+    for(const c of chks){
+      const {en}=findEntry(c.dataset.app, c.dataset.en);
+      if(en.status!=="ok") add[en.perfId]=(add[en.perfId]||0)+Number(en.count);
+    }
+    const overs=[];
+    for(const [pid,n] of Object.entries(add)){
+      const p=findPerf(show,pid);
+      if(p&&p.capacity!=null&&confirmedCount(show,pid)+n>Number(p.capacity))
+        overs.push(`${perfShort(p)}（${confirmedCount(show,pid)+n}/${p.capacity}枚）`);
+    }
+    if(overs.length&&!confirm(`⚠ 次の回は付与枚数を超えます：\n${overs.join("、")}\nそれでも確定しますか？`)) return;
+  }
   for(const c of chks){
     const {en}=findEntry(c.dataset.app, c.dataset.en);
     en.status=st;
@@ -1988,19 +2131,26 @@ function setEntryCount(appId,enId,v){
   if(en.origCount==null) en.origCount=Number(en.count);
   en.count=n;
   if(Number(en.origCount)===n) en.origCount=null;   // 元に戻したら表示も戻す
+  // 席種割当と枚数が食い違ったら割当をリセット（再割当を促す）
+  if(en.classAlloc && Object.values(en.classAlloc).reduce((s,x)=>s+Number(x),0)!==n) en.classAlloc=null;
   rerender();
 }
 // 複数枚の申込を「ご本人1枚のみ」に減らして取次○にする
 function reduceToOne(appId,enId){
   const {app,en}=findEntry(appId,enId);
   if(!confirm(`${personName(app)}様の ${en.count}枚 の申込を「ご本人1枚のみ」に減らして取次○にしますか？`)) return;
+  if(en.status!=="ok" && !capWarn(showOf(app),en.perfId,1)) return;
   if(en.origCount==null) en.origCount=Number(en.count);
   en.count=1;
   en.status="ok";
+  if(en.classAlloc && Object.values(en.classAlloc).reduce((s,x)=>s+Number(x),0)!==1) en.classAlloc=null;
   rerender();
 }
 function confirmProposals(perfId){
   const show=allocShow();
+  const p=findPerf(show,perfId);
+  const addN=entriesOfPerf(show,perfId).filter(x=>x.en.status==="proposed").reduce((s,x)=>s+Number(x.en.count),0);
+  if(addN>0 && !capWarn(show,perfId,addN)) return;
   for(const a of DB.applications.filter(a=>a.showId===show.id))
     for(const en of a.entries){
       if(en.perfId!==perfId) continue;
@@ -2012,6 +2162,14 @@ function confirmProposals(perfId){
 function confirmProposalsMulti(){
   const show=allocShow();
   if(!allocChecked.size) return;
+  const overs=[];
+  for(const pid of allocChecked){
+    const p=findPerf(show,pid);
+    if(!p||p.capacity==null) continue;
+    const addN=entriesOfPerf(show,pid).filter(x=>x.en.status==="proposed").reduce((s,x)=>s+Number(x.en.count),0);
+    if(confirmedCount(show,pid)+addN>Number(p.capacity)) overs.push(perfShort(p));
+  }
+  if(overs.length&&!confirm(`⚠ 次の回は確定が付与枚数を超えます：${overs.join("、")}\nそれでも一括確定しますか？`)) return;
   let n=0;
   for(const a of DB.applications.filter(a=>a.showId===show.id))
     for(const en of a.entries){
@@ -2045,13 +2203,21 @@ function runAutoAlloc(){
     }
   // 候補：未処理・案 の申込行（手動確定/不可/振替/返金系はさわらない）
   const persons=new Map();
+  const seenPersonPerf=new Set();   // 同一人物×同一回の重複行ガード
   for(const a of DB.applications.filter(a=>a.showId===show.id)){
     for(const en of a.entries){
       if(!["pending","proposed","proposedNg"].includes(en.status)) continue;
       if(target && !target.has(en.perfId)) continue;
       const pf=findPerf(show,en.perfId);
       if(pf?.blocked){ en.status="proposedNg"; continue; } // 取次不可回は自動で案:×
-      if(cap[en.perfId]==null) continue; // 枚数未定の回は対象外
+      if(cap[en.perfId]==null){
+        // 枚数未定になった回の古い「案」は未処理に戻す
+        if(en.status!=="pending") en.status="pending";
+        continue;
+      }
+      const key=a.personId+"|"+en.perfId;
+      if(seenPersonPerf.has(key)){ en.status="proposedNg"; continue; } // 重複行は2つ目以降を案:×
+      seenPersonPerf.add(key);
       if(!persons.has(a.personId)) persons.set(a.personId,{score:scoreOf(a.personId,a), okBase:personOkTotal(show,a.personId), list:[]});
       persons.get(a.personId).list.push({app:a,en});
     }
@@ -2114,6 +2280,7 @@ function markTransferOffered(appId,enId){
 }
 function doTransfer(appId,enId,toPerfId){
   const {app,en}=findEntry(appId,enId);
+  if(!capWarn(showOf(app),toPerfId,Number(en.count))) return;
   en.status="transferred"; en.transferTo=toPerfId;
   closeDialog(); rerender();
   const show=showOf(app), tp=findPerf(show,toPerfId);
@@ -2145,15 +2312,53 @@ function buildSeatSVG(theater, floorIdx, state){
     colOf[n]=i; jumpOf[n]=jumps;
   });
   const totalAisles=jumps;
-  // xshift（ボックス席の横ずらし）も含めた列範囲
-  let minCol=Infinity, maxCol=-Infinity;
-  for(const r of fl.rows) for(const b of r.blocks){
-    const sh=r.xshift||0;
-    minCol=Math.min(minCol,colOf[b[0]]+sh); maxCol=Math.max(maxCol,colOf[b[1]]+sh);
+  const numBands=totalAisles+1;
+  const midBand=(numBands-1)/2;   // 中央の帯（奇数帯のとき整数）
+  // ブロックが属する「番号帯」。帯をまたぐブロックは対象外(null)
+  const bandOf=(b)=>jumpOf[b[0]]===jumpOf[b[1]]?jumpOf[b[0]]:null;
+  // 帯ごとの列範囲と、1列に同じ帯のブロックが複数ある「複合帯」の検出（東京の50|51隣接など）
+  const bandMin={}, bandMax={}, composite={};
+  for(const r of fl.rows){
+    if(r.xshift) continue;
+    const seen={};
+    for(const b of r.blocks){
+      const k=bandOf(b);
+      if(k==null) continue;
+      if(seen[k]) composite[k]=true;
+      seen[k]=true;
+      bandMin[k]=Math.min(bandMin[k]??Infinity, colOf[b[0]]);
+      bandMax[k]=Math.max(bandMax[k]??-Infinity, colOf[b[1]]);
+    }
   }
+  // 公式座席表の揃え方：左側の帯=通路側(右)揃え／中央帯=中央揃え(千鳥)／右側の帯=左揃え
+  // 帯構造が素直でない階（複合帯・帯またぎ）は従来の番号揃えのまま（安全フォールバック）
+  const blockShift=(b,xshift)=>{
+    if(xshift) return 0;
+    const k=bandOf(b);
+    if(k==null||composite[k]) return 0;
+    if(k<midBand) return bandMax[k]-colOf[b[1]];
+    if(k===midBand) return (bandMin[k]+bandMax[k]-colOf[b[0]]-colOf[b[1]])/2;
+    return bandMin[k]-colOf[b[0]];
+  };
+  // xshift（ボックス席の横ずらし）と揃えシフトも含めた列範囲
+  let minCol=Infinity, maxCol=-Infinity;
+  for(const r of fl.rows) r.blocks.forEach((b)=>{
+    const sh=(r.xshift||0)+blockShift(b,r.xshift);
+    minCol=Math.min(minCol,colOf[b[0]]+sh); maxCol=Math.max(maxCol,colOf[b[1]]+sh);
+  });
   const cols=maxCol-minCol+1;
   const yRowCount=fl.rows.filter(r=>!r.sameY).length;
-  const W=cols*SW+(totalAisles+1)*AISLE+90, cx=W/2, hw=W/2;
+  const W=cols*SW+(totalAisles+1)*AISLE+90;
+  // 弧の中心は本体座席（ボックス除く）の実際の中心に合わせる
+  let mainMin=Infinity, mainMax=-Infinity;
+  for(const r of fl.rows){
+    if(r.xshift) continue;
+    r.blocks.forEach((b)=>{
+      const sh=blockShift(b,0);
+      mainMin=Math.min(mainMin,colOf[b[0]]+sh); mainMax=Math.max(mainMax,colOf[b[1]]+sh);
+    });
+  }
+  const cx=30+((mainMin+mainMax)/2-minCol)*SW+(totalAisles/2)*AISLE, hw=Math.max(cx,W-cx);
   const arcDepth=W*ARC*0.35;
   const H=yRowCount*RH+arcDepth+70;
   const zoom=state.zoom||1;
@@ -2166,10 +2371,10 @@ function buildSeatSVG(theater, floorIdx, state){
     const baseY=y0+Math.max(yIdx,0)*RH;
     let rowMinX=Infinity, rowMaxX=-Infinity;
     r.blocks.forEach((b,bi)=>{
+      const shift=(r.xshift||0)+blockShift(b,r.xshift);
       for(let n=b[0];n<=b[1];n++){
-        // 通路オフセット：ブロック順と番号帯の飛びの大きい方を採用（列ごとのブロック欠けでもズレない）
         const aisleN=r.xshift?0:Math.max(bi, jumpOf[n]||0);
-        const x=30+(colOf[n]+(r.xshift||0)-minCol)*SW+aisleN*AISLE;
+        const x=30+(colOf[n]+shift-minCol)*SW+aisleN*AISLE;
         const dy=arcDepth*Math.pow((x-cx)/hw,2);
         const y=baseY+dy;
         rowMinX=Math.min(rowMinX,x); rowMaxX=Math.max(rowMaxX,x+SW);
@@ -2241,6 +2446,7 @@ function renderSeatTab(){
     return `<div class="perf-card ${seatSelEntry===en.id?"sel":""}" onclick="seatSelEntry='${en.id}';seatMode='assign';renderSeatTab()">
       <div class="d">${esc(personName(app))} <span class="muted">${need}枚</span></div>
       <div class="${got>=need?"muted":""}" style="font-size:12px">${got>=need?"✓":""} 割当 ${got}/${need}枚</div>
+      ${en.classAlloc?`<div style="font-size:11.5px;color:#5b4a9e">🎟予定: ${esc(classAllocText(en))}</div>`:""}
       ${seatsTxt?`<div class="muted" style="font-size:11.5px">${esc(seatsTxt)}</div>`:""}
       ${cost?`<div style="font-size:11.5px;color:var(--accent-deep)">💴 ${esc(cost.text)}${cost.total!=null?` ＝ ${yen(cost.total)}`:""}</div>`:""}
     </div>`;
@@ -2554,6 +2760,11 @@ function deleteTheater(id){
 
 <script>
 /* ================= ご案内文 ================= */
+let msgSort="date", msgDir=1;
+function setMsgSort(key){
+  if(msgSort===key) msgDir=-msgDir; else { msgSort=key; msgDir=1; }
+  renderMsgTab();
+}
 function renderMsgTab(){
   fillShowSelectors();
   const show=DB.shows.find(s=>s.id===document.getElementById("msgShowSel").value);
@@ -2562,8 +2773,19 @@ function renderMsgTab(){
   // 確定のある申込者一覧
   const apps=DB.applications.filter(a=>a.showId===show.id &&
     a.entries.some(en=>en.status==="ok"||en.status==="transferred"));
+  // ソート（列見出しクリックでも切替。同じ列をもう一度押すと昇順/降順が反転）
+  const keyOf=a=>{
+    const ls=confirmedLines(show,a);
+    if(msgSort==="date") return ls.length?ls[0].perf.date+ls[0].perf.time:"9999";
+    if(msgSort==="name"){ const p=DB.people.find(x=>x.id===a.personId); return (p?.kana||p?.name||a.name||""); }
+    if(msgSort==="received") return a.receivedAt||"";
+    if(msgSort==="notified") return a.notified?"1":"0";
+    return "";
+  };
+  apps.sort((a,b)=>{ const ka=keyOf(a), kb=keyOf(b); return ka<kb?-msgDir:ka>kb?msgDir:0; });
+  const arrow=k=>msgSort===k?(msgDir===1?" ▲":" ▼"):"";
   const rows=apps.map(a=>{
-    const lines=confirmedLines(show,a).map(x=>`${perfShort(x.perf)}×${x.count}`).join("、");
+    const lines=confirmedLines(show,a).map(x=>`${perfShort(x.perf)}×${x.count}${x.cls?`(${x.cls})`:""}`).join("、");
     return `<tr>
       <td><b>${esc(personName(a))}</b> ${personTag(a)}</td>
       <td class="muted">${lines}</td>
@@ -2572,25 +2794,40 @@ function renderMsgTab(){
     </tr>`;
   }).join("");
   el.innerHTML=`<div class="card">
-    <p class="muted">お取次ぎが確定した方の一覧です。「文面を作る」→ コピーして LINE に貼り付けてください。</p>
+    <p class="muted">お取次ぎが確定した方の一覧です。「文面を作る」→ コピーして LINE に貼り付けてください。<b>列の見出しをクリックすると並べ替え</b>（もう一度押すと昇順/降順が入れ替わります）。</p>
     <div style="overflow-x:auto;margin-top:8px"><table class="list">
-      <tr><th>お名前</th><th>確定内容</th><th>案内状況</th><th class="no-print"></th></tr>
+      <tr>
+        <th style="cursor:pointer" onclick="setMsgSort('name')">お名前${arrow("name")}</th>
+        <th style="cursor:pointer" onclick="setMsgSort('date')">確定内容（初回日順）${arrow("date")}</th>
+        <th style="cursor:pointer" onclick="setMsgSort('notified')">案内状況${arrow("notified")}</th>
+        <th class="no-print" style="cursor:pointer" onclick="setMsgSort('received')">受付日順${arrow("received")}</th>
+      </tr>
       ${rows||`<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">確定した方がまだいません。振り分けタブで確定するとここに表示されます。</td></tr>`}
     </table></div></div>`;
 }
 function confirmedLines(show,a){
   const out=[];
   for(const en of a.entries){
-    if(en.status==="ok"){ const p=findPerf(show,en.perfId); if(p) out.push({perf:p,count:en.count}); }
-    else if(en.status==="transferred"&&en.transferTo){ const p=findPerf(show,en.transferTo); if(p) out.push({perf:p,count:en.count}); }
+    if(en.status==="ok"){ const p=findPerf(show,en.perfId); if(p) out.push({perf:p,count:en.count,alloc:en.classAlloc||null}); }
+    else if(en.status==="transferred"&&en.transferTo){ const p=findPerf(show,en.transferTo); if(p) out.push({perf:p,count:en.count,alloc:en.classAlloc||null}); }
   }
+  for(const x of out) x.cls=x.alloc?classAllocText({classAlloc:x.alloc}):"";
   return out.sort((x,y)=>(x.perf.date+x.perf.time).localeCompare(y.perf.date+y.perf.time));
 }
 function zenNum(n){ return String(n); }
+// ご案内文の枚数行：席種割当があれば「S+席1枚・B席1枚」、なければ「◯枚」
+function msgCountLine(x){
+  if(x.alloc){
+    const ks=Object.keys(x.alloc).filter(k=>x.alloc[k]>0);
+    ks.sort((a,b)=>(CLASS_ORDER.indexOf(a)+99)%99-(CLASS_ORDER.indexOf(b)+99)%99);
+    return ks.map(k=>`${k}席 ${x.alloc[k]}枚`).join("・");
+  }
+  return `${x.count}枚`;
+}
 function buildMessage(show,a){
   const th=theaterOf(show);
   const lines=confirmedLines(show,a).map(x=>
-    `　${fmtDate(x.perf.date).replace("(","（").replace(")","）")}${x.perf.time}公演\n　　${x.count}枚`).join("\n");
+    `　${fmtDate(x.perf.date).replace("(","（").replace(")","）")}${x.perf.time}公演\n　　${msgCountLine(x)}`).join("\n");
   const wins=(show.pickupWindows||[]);
   let winHead="";
   if(wins.length){
