@@ -1,0 +1,2768 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>CERCLE Mi-Sol-La チケット取次管理</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#faf7f4; --panel:#ffffff; --ink:#3a2e35; --sub:#8a7580;
+  --accent:#a4456e; --accent-soft:#f3dce6; --accent-deep:#7c2d52;
+  --gold:#b8963e; --gold-soft:#f5ecd7;
+  --ok:#2e8b57; --ok-soft:#ddf0e4; --ng:#c0392b; --ng-soft:#fbe3df;
+  --warn:#b8860b; --warn-soft:#faf0d2; --info:#4169aa; --info-soft:#e2eaf8;
+  --line:#e8dfe4; --radius:12px;
+  --shadow:0 2px 10px rgba(90,50,70,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6}
+header{background:linear-gradient(135deg,#4a1f35 0%,#7c2d52 55%,#a4456e 100%);color:#fff;padding:14px 22px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+header h1{font-size:19px;font-weight:700;letter-spacing:.06em;font-family:"Yu Mincho","Hiragino Mincho ProN",serif}
+header .sub{font-size:12px;opacity:.85;letter-spacing:.12em}
+nav{display:flex;gap:2px;background:#fff;border-bottom:2px solid var(--accent-soft);padding:0 14px;overflow-x:auto;position:sticky;top:0;z-index:50}
+nav button{border:none;background:none;padding:12px 16px;font-size:14px;cursor:pointer;color:var(--sub);border-bottom:3px solid transparent;white-space:nowrap;font-family:inherit}
+nav button:hover{color:var(--accent)}
+nav button.active{color:var(--accent-deep);border-bottom-color:var(--accent);font-weight:700}
+main{max-width:1280px;margin:0 auto;padding:20px 18px 80px}
+.tab{display:none}
+.tab.active{display:block}
+h2{font-size:17px;color:var(--accent-deep);margin:6px 0 14px;display:flex;align-items:center;gap:8px}
+h3{font-size:14.5px;color:var(--accent-deep);margin:14px 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:16px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.row>*{flex-shrink:0}
+.grow{flex:1 1 160px}
+label.fld{display:block;font-size:11.5px;color:var(--sub);margin-bottom:3px;font-weight:600}
+input[type=text],input[type=tel],input[type=number],input[type=date],input[type=time],select,textarea{
+  border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink);width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+textarea{resize:vertical}
+button.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13.5px;cursor:pointer;font-family:inherit;font-weight:600;transition:opacity .15s}
+button.btn:hover{opacity:.85}
+button.btn.sub{background:#fff;color:var(--accent-deep);border:1.5px solid var(--accent)}
+button.btn.ghost{background:#fff;color:var(--sub);border:1px solid var(--line)}
+button.btn.danger{background:#fff;color:var(--ng);border:1.5px solid var(--ng)}
+button.btn.mini{padding:4px 10px;font-size:12px;border-radius:6px}
+button.btn.gold{background:var(--gold);color:#fff}
+table.list{width:100%;border-collapse:collapse;font-size:13.5px}
+table.list th{background:var(--accent-soft);color:var(--accent-deep);padding:7px 9px;text-align:left;font-size:12px;letter-spacing:.03em;white-space:nowrap}
+table.list td{padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.list tr:hover td{background:#fdf6fa}
+.tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.tag.guest{background:var(--gold-soft);color:#8a6d20}
+.tag.staff{background:var(--info-soft);color:var(--info)}
+.tag.member{background:var(--accent-soft);color:var(--accent-deep)}
+.tag.family{background:#e8e2f5;color:#5b4a9e}
+.tag.other{background:#eee;color:#777}
+.tag.st-pending{background:#f0f0f0;color:#777}
+.tag.st-proposed{background:var(--info-soft);color:var(--info)}
+.tag.st-ok{background:var(--ok-soft);color:var(--ok)}
+.tag.st-ng{background:var(--ng-soft);color:var(--ng)}
+.tag.st-transfer{background:var(--warn-soft);color:var(--warn)}
+.tag.st-refund{background:#f7e0ee;color:#a4456e}
+.tag.st-done{background:#e0e8e0;color:#557755}
+.muted{color:var(--sub);font-size:12.5px}
+.big{font-size:18px;font-weight:700}
+.pill-stat{display:inline-flex;flex-direction:column;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 18px;margin:0 6px 6px 0}
+.pill-stat .v{font-size:20px;font-weight:800;color:var(--accent-deep)}
+.pill-stat .k{font-size:11px;color:var(--sub)}
+.notice{padding:10px 14px;border-radius:8px;font-size:13px;margin:8px 0}
+.notice.info{background:var(--info-soft);color:var(--info)}
+.notice.warn{background:var(--warn-soft);color:#7a5a08}
+.notice.ok{background:var(--ok-soft);color:var(--ok)}
+.flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+dialog{border:none;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.25);padding:0;max-width:min(720px,94vw);width:100%}
+dialog::backdrop{background:rgba(60,30,45,.45)}
+.dlg-head{background:var(--accent-deep);color:#fff;padding:12px 18px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.dlg-head button{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1}
+.dlg-body{padding:16px 18px;max-height:75vh;overflow-y:auto}
+.seatmap-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fdfbf8;max-height:640px}
+.seatmap-wrap svg{display:block;margin:0 auto}
+.seat{cursor:pointer;stroke:#c9b8c0;stroke-width:.6;fill:#fff}
+.seat.held{fill:#f7d774;stroke:#b8963e}
+.seat.assigned{fill:#a4456e;stroke:#7c2d52}
+.seat.sel{stroke:#e0245e;stroke-width:2}
+.seat-num{font-size:5.2px;pointer-events:none;fill:#6a5a63;text-anchor:middle}
+.seat-num.on{fill:#fff;font-weight:700}
+.rowlab{font-size:8px;fill:#a4456e;font-weight:700;text-anchor:middle}
+.legend-dot{display:inline-block;width:13px;height:13px;border-radius:3px;border:1px solid #c9b8c0;vertical-align:-2px;margin-right:4px}
+.perf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
+.perf-card{border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer;transition:border-color .15s}
+.perf-card:hover{border-color:var(--accent)}
+.perf-card.sel{border-color:var(--accent);background:#fdf3f8}
+.perf-card .d{font-weight:700;font-size:14px}
+.bar{height:7px;border-radius:4px;background:#eee;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;border-radius:4px}
+.copybox{background:#f8f4f6;border:1px dashed var(--accent);border-radius:10px;padding:14px;white-space:pre-wrap;font-size:13.5px;line-height:1.7}
+.drag-handle{cursor:grab;color:#bbb;user-select:none}
+tr.dragging{opacity:.4}
+.footer-note{position:fixed;bottom:0;left:0;right:0;background:#fffdf5cc;backdrop-filter:blur(4px);border-top:1px solid var(--line);padding:5px 16px;font-size:11.5px;color:var(--sub);display:flex;justify-content:space-between;gap:10px}
+.chk{width:16px;height:16px;accent-color:var(--accent)}
+#loginOverlay{position:fixed;inset:0;background:linear-gradient(135deg,#4a1f35 0%,#7c2d52 55%,#a4456e 100%);z-index:1000;display:flex;align-items:center;justify-content:center}
+.login-card{background:#fff;border-radius:16px;padding:34px 38px;box-shadow:0 12px 50px rgba(0,0,0,.35);width:min(400px,92vw);text-align:center}
+.login-card h1{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--accent-deep);font-size:21px;letter-spacing:.08em}
+.login-card .sub2{color:var(--sub);font-size:12.5px;margin:4px 0 20px;letter-spacing:.1em}
+.login-card input[type=password]{text-align:center;font-size:16px;padding:10px}
+#loginStatus{color:var(--ng);font-size:12.5px;min-height:18px;margin-top:8px}
+.tag.blocked{background:#3a3a3a;color:#fff}
+/* ---- スマホ表示の調整 ---- */
+@media (max-width:640px){
+  header{padding:10px 12px;gap:8px}
+  header h1{font-size:16px}
+  header .sub{display:none}
+  nav{padding:0 4px}
+  nav button{padding:11px 10px;font-size:13px}
+  main{padding:12px 8px 70px}
+  .card{padding:12px 10px;border-radius:10px}
+  h2{font-size:15.5px}
+  .dlg-body{padding:12px 10px;max-height:80vh}
+  dialog{max-width:97vw}
+  table.list{font-size:12.5px}
+  table.list th,table.list td{padding:6px 6px}
+  .perf-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px}
+  .perf-card{padding:8px 9px}
+  button.btn{padding:8px 12px}
+  .seatmap-wrap{max-height:70vh}
+  .footer-note{display:none}
+  input[type=text],input[type=tel],input[type=number],input[type=date],input[type=time],select,textarea{font-size:16px}
+}
+@media print{
+  nav,header,.no-print,.footer-note{display:none!important}
+  body{background:#fff}
+  .card{box-shadow:none;border:none}
+}
+</style>
+</head>
+
+<body>
+<header>
+  <h1>CERCLE Mi-Sol-La</h1>
+  <span class="sub">チケットお取次ぎ管理システム ─ 美空真瑠</span>
+  <span style="margin-left:auto;font-size:12px;opacity:.9" id="saveState"></span>
+  <button class="btn mini ghost no-print" style="background:transparent;color:#fff;border-color:#ffffff66" onclick="logout()">ログアウト</button>
+</header>
+<div id="loginOverlay">
+  <div class="login-card">
+    <h1>CERCLE Mi-Sol-La</h1>
+    <div class="sub2">チケットお取次ぎ管理システム</div>
+    <label class="fld" style="text-align:left">パスワード</label>
+    <input type="password" id="loginPw" onkeydown="if(event.key==='Enter')doLogin()" autocomplete="current-password">
+    <div style="text-align:left;margin-top:10px"><label style="font-size:13px"><input type="checkbox" class="chk" id="loginRemember" checked> この端末でログイン状態を保持する</label></div>
+    <div id="loginStatus"></div>
+    <button class="btn" style="width:100%;margin-top:10px;padding:10px" onclick="doLogin()">ログイン</button>
+    <p class="muted" style="margin-top:14px;font-size:11.5px">データはクラウドに保存され、どのブラウザ・パソコンからでも同じ内容が使えます</p>
+  </div>
+</div>
+<nav id="mainNav">
+  <button data-tab="dashboard" class="active">🏠 ホーム</button>
+  <button data-tab="people">👥 名簿</button>
+  <button data-tab="shows">🎭 公演</button>
+  <button data-tab="apps">✉️ 申込</button>
+  <button data-tab="alloc">🎯 振り分け</button>
+  <button data-tab="seats">🪑 配席</button>
+  <button data-tab="msg">📨 ご案内文</button>
+  <button data-tab="refund">💰 返金</button>
+  <button data-tab="settings">⚙️ 設定</button>
+</nav>
+<main>
+
+<!-- ============ ホーム ============ -->
+<section class="tab active" id="tab-dashboard">
+  <h2>🏠 ホーム</h2>
+  <div id="dashBody"></div>
+</section>
+
+<!-- ============ 名簿 ============ -->
+<section class="tab" id="tab-people">
+  <div class="spread">
+    <h2>👥 名簿（会員・お客様・スタッフ）</h2>
+    <div class="flex no-print">
+      <button class="btn sub" onclick="openImportDialog()">📥 Excel/CSV読み込み</button>
+      <button class="btn" onclick="openPersonDialog()">＋ 手動で追加</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="row" style="margin-bottom:10px">
+      <div class="grow"><label class="fld">検索</label><input type="text" id="peopleSearch" placeholder="名前・ふりがな・電話番号" oninput="renderPeople()"></div>
+      <div><label class="fld">区分</label><select id="peopleFilter" onchange="renderPeople()">
+        <option value="">すべて</option><option value="guest">お客様</option><option value="staff">スタッフ</option>
+        <option value="member">会員</option><option value="family">親類</option><option value="other">その他</option>
+      </select></div>
+      <div id="peopleStats" class="muted"></div>
+    </div>
+    <div style="overflow-x:auto"><table class="list" id="peopleTable"></table></div>
+  </div>
+</section>
+
+<!-- ============ 公演 ============ -->
+<section class="tab" id="tab-shows">
+  <div class="spread">
+    <h2>🎭 公演管理</h2>
+    <button class="btn no-print" onclick="openShowDialog()">＋ 公演を追加</button>
+  </div>
+  <div id="showList"></div>
+</section>
+
+<!-- ============ 申込 ============ -->
+<section class="tab" id="tab-apps">
+  <div class="spread">
+    <h2>✉️ 申込の受付</h2>
+    <div class="flex no-print">
+      <select id="appShowFilter" onchange="renderApps()" style="width:auto"></select>
+      <button class="btn sub" onclick="openPasteDialog()">📋 LINEテキスト貼り付け</button>
+      <button class="btn sub" onclick="openExcelAppDialog()">📊 Excel申込リスト</button>
+      <button class="btn" onclick="openAppDialog()">＋ フォームで入力</button>
+    </div>
+  </div>
+  <div class="card">
+    <div style="overflow-x:auto"><table class="list" id="appsTable"></table></div>
+  </div>
+</section>
+
+<!-- ============ 振り分け ============ -->
+<section class="tab" id="tab-alloc">
+  <div class="spread">
+    <h2>🎯 観劇者の振り分け</h2>
+    <div class="flex no-print">
+      <select id="allocShowSel" onchange="renderAlloc()" style="width:auto"></select>
+      <button class="btn gold" onclick="runAutoAlloc()">✨ 自動振り分け（案を作成）</button>
+    </div>
+  </div>
+  <div class="notice info">各回のカードを<b>チェック</b>して「自動振り分け」を押すと、選択した回だけをまとめて振り分けます（未選択なら全回対象）。<b>一人でも多くの方に1回は観ていただく</b>方針で、複数回のバランスを見ながら割り当てます。初日・千秋楽は親類・お客様・スタッフに自動で加点されます🎀。案は1件ずつでも、行をチェックして一括でも確定できます。</div>
+  <div id="allocBody"></div>
+</section>
+
+<!-- ============ 配席 ============ -->
+<section class="tab" id="tab-seats">
+  <div class="spread">
+    <h2>🪑 配席（席位置の入力と割り当て）</h2>
+    <div class="flex no-print">
+      <select id="seatShowSel" onchange="renderSeatTab()" style="width:auto"></select>
+      <select id="seatPerfSel" onchange="renderSeatTab()" style="width:auto"></select>
+    </div>
+  </div>
+  <div id="seatBody"></div>
+</section>
+
+<!-- ============ ご案内文 ============ -->
+<section class="tab" id="tab-msg">
+  <div class="spread">
+    <h2>📨 お取次ぎ確定のご案内文</h2>
+    <div class="flex no-print">
+      <select id="msgShowSel" onchange="renderMsgTab()" style="width:auto"></select>
+    </div>
+  </div>
+  <div id="msgBody"></div>
+</section>
+
+<!-- ============ 返金 ============ -->
+<section class="tab" id="tab-refund">
+  <div class="spread">
+    <h2>💰 返金リスト</h2>
+    <div class="flex no-print">
+      <select id="refundShowSel" onchange="renderRefund()" style="width:auto"></select>
+      <button class="btn sub" onclick="exportRefundCSV()">📤 CSV書き出し</button>
+      <button class="btn ghost" onclick="window.print()">🖨 印刷</button>
+    </div>
+  </div>
+  <div class="notice info">取次不可・返金対応が必要な方の一覧です。返金額は1件ずつ手動で入力してください（チケット代のみ／サポート代込みなど、そのつど判断できます）。</div>
+  <div class="card"><div style="overflow-x:auto"><table class="list" id="refundTable"></table></div></div>
+</section>
+
+<!-- ============ 設定 ============ -->
+<section class="tab" id="tab-settings">
+  <h2>⚙️ 設定</h2>
+  <div class="card">
+    <h3>優先スコアの重み</h3>
+    <p class="muted">優先スコア ＝ 区分の点数 ＋ 在籍年数×係数 ＋ サポート代÷除数 ＋ 個人補正。自動振り分けの並び順に使われます。</p>
+    <div class="row" style="margin-top:8px">
+      <div><label class="fld">お客様</label><input type="number" id="w_guest" style="width:90px"></div>
+      <div><label class="fld">スタッフ</label><input type="number" id="w_staff" style="width:90px"></div>
+      <div><label class="fld">親類</label><input type="number" id="w_family" style="width:90px"></div>
+      <div><label class="fld">会員(基礎)</label><input type="number" id="w_member" style="width:90px"></div>
+      <div><label class="fld">その他</label><input type="number" id="w_other" style="width:90px"></div>
+      <div><label class="fld">在籍1年あたり</label><input type="number" id="w_year" style="width:90px"></div>
+      <div><label class="fld">サポート代の除数</label><input type="number" id="w_supportDiv" style="width:110px"></div>
+      <div><label class="fld">🎂誕生日加点</label><input type="number" id="w_bday" style="width:90px"></div>
+      <div><label class="fld">🎂対象（±日数）</label><input type="number" id="w_bdayRange" style="width:90px"></div>
+      <div><label class="fld">🎀初日・楽 優先加点</label><input type="number" id="w_premiere" style="width:100px" title="初日と千秋楽で親類・お客様・スタッフに加点"></div>
+      <div><button class="btn" onclick="saveWeights()">保存</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>ご案内文テンプレート</h3>
+    <p class="muted">使える差し込みタグ：{お名前} {組} {劇場} {公演タイトル} {取次リスト} {受取時間案内} {受取場所} {会携帯}</p>
+    <textarea id="tmplEdit" rows="18" style="font-size:13px;margin-top:6px"></textarea>
+    <div class="flex" style="margin-top:8px">
+      <button class="btn" onclick="saveTemplate()">保存</button>
+      <button class="btn ghost" onclick="resetTemplate()">初期テンプレートに戻す</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3>劇場と座席表</h3>
+    <p class="muted">宝塚大劇場・東京宝塚劇場・宝塚バウホールは組み込み済み。他劇場は座席表テキストから追加できます。</p>
+    <div id="theaterList" style="margin:8px 0"></div>
+    <button class="btn sub" onclick="openTheaterDialog()">＋ 劇場を追加（座席図を生成）</button>
+  </div>
+  <div class="card">
+    <h3>ログインパスワードの変更</h3>
+    <p class="muted">運用担当の方と共有しているパスワードです。変更すると全員が新しいパスワードでログインし直す必要があります。</p>
+    <div class="row" style="margin-top:8px">
+      <div><label class="fld">現在のパスワード</label><input type="password" id="pw_old" style="width:180px"></div>
+      <div><label class="fld">新しいパスワード（8文字以上）</label><input type="password" id="pw_new" style="width:180px"></div>
+      <div><label class="fld">新しいパスワード（確認）</label><input type="password" id="pw_new2" style="width:180px"></div>
+      <div><button class="btn" onclick="changePassword()">変更する</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>データのバックアップ</h3>
+    <p class="muted">データはクラウドに自動保存されています。念のため大事な時期にはファイルにも書き出しておくと安心です。</p>
+    <div class="flex" style="margin-top:8px">
+      <button class="btn sub" onclick="exportBackup()">💾 バックアップを書き出す</button>
+      <button class="btn ghost" onclick="document.getElementById('backupFile').click()">📂 バックアップを読み込む</button>
+      <input type="file" id="backupFile" accept=".json" style="display:none" onchange="importBackup(this)">
+      <button class="btn danger" onclick="wipeAll()">全データ初期化</button>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="footer-note no-print"><span>CERCLE Mi-Sol-La チケット取次管理</span><span id="dataCount"></span></div>
+<div id="dialogHost"></div>
+
+<script>
+const BUILTIN_THEATERS = [{"id": "takarazuka", "name": "宝塚大劇場", "total": 2619, "note": "blocksは左→右。両端含む数値範囲。left_box/right_boxは通路外側のボックス席(L1〜/R1〜)。2階のA席サイドボックス(L1-L6/R1-R6×各7列)はside_boxesに記載。 L/R行はボックス席（例: L22列2番 = 22列脇 左ボックスL2）", "floors": [{"name": "1階", "rows": [{"row": 1, "blocks": [[21, 26], [41, 51], [61, 66]]}, {"row": 2, "blocks": [[1, 4], [21, 28], [41, 52], [61, 68], [81, 84]]}, {"row": 3, "blocks": [[1, 4], [21, 28], [41, 51], [61, 68], [81, 84]]}, {"row": 4, "blocks": [[1, 5], [21, 28], [41, 52], [61, 68], [81, 85]]}, {"row": 5, "blocks": [[1, 6], [21, 29], [41, 51], [61, 69], [81, 86]]}, {"row": 6, "blocks": [[1, 6], [21, 29], [41, 52], [61, 69], [81, 86]]}, {"row": 7, "blocks": [[1, 7], [21, 29], [41, 51], [61, 69], [81, 87]]}, {"row": 8, "blocks": [[1, 7], [21, 29], [41, 52], [61, 69], [81, 87]]}, {"row": 9, "blocks": [[1, 8], [21, 29], [41, 51], [61, 69], [81, 88]]}, {"row": 10, "blocks": [[1, 9], [21, 30], [41, 52], [61, 70], [81, 89]]}, {"row": 11, "blocks": [[1, 10], [21, 30], [41, 51], [61, 70], [81, 90]]}, {"row": 12, "blocks": [[1, 11], [21, 30], [41, 52], [61, 70], [81, 91]]}, {"row": 13, "blocks": [[1, 12], [21, 30], [41, 51], [61, 70], [81, 92]]}, {"row": 14, "blocks": [[1, 12], [21, 30], [41, 52], [61, 70], [81, 92]]}, {"row": 15, "blocks": [[1, 12], [21, 31], [41, 51], [61, 71], [81, 92]]}, {"row": 16, "blocks": [[1, 12], [21, 31], [41, 52], [61, 71], [81, 92]]}, {"row": 17, "blocks": [[1, 12], [21, 31], [41, 51], [61, 71], [81, 92]]}, {"row": 18, "blocks": [[1, 12], [21, 31], [41, 52], [61, 71], [81, 92]]}, {"row": 19, "blocks": [[1, 12], [21, 31], [41, 51], [61, 71], [81, 92]]}, {"row": 20, "blocks": [[1, 12], [21, 32], [41, 52], [61, 72], [81, 92]]}, {"row": 21, "blocks": [[1, 12], [21, 32], [41, 51], [61, 72], [81, 92]]}, {"row": 22, "blocks": [[1, 12], [21, 32], [41, 52], [61, 72], [81, 92]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L22", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R22", "blocks": [[1, 3]], "xshift": 66, "sameY": true}, {"row": 23, "blocks": [[1, 12], [21, 32], [41, 51], [61, 72], [81, 92]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L23", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R23", "blocks": [[1, 3]], "xshift": 66, "sameY": true}, {"row": 24, "blocks": [[1, 12], [21, 32], [41, 52], [61, 72], [81, 92]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L24", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R24", "blocks": [[1, 3]], "xshift": 66, "sameY": true}, {"row": 25, "blocks": [[1, 12], [21, 32], [41, 51], [61, 72], [81, 92]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L25", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R25", "blocks": [[1, 3]], "xshift": 66, "sameY": true}, {"row": 26, "blocks": [[1, 12], [21, 32], [41, 52], [61, 72], [81, 92]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L26", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R26", "blocks": [[1, 3]], "xshift": 66, "sameY": true}, {"row": 27, "blocks": [[1, 12], [21, 32], [41, 51], [61, 72], [81, 92]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L27", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R27", "blocks": [[1, 3]], "xshift": 66, "sameY": true}, {"row": 28, "blocks": [[1, 12], [21, 32], [41, 52], [61, 72], [81, 92]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L28", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R28", "blocks": [[1, 3]], "xshift": 66, "sameY": true}, {"row": 29, "blocks": [[1, 12], [21, 32], [41, 51], [61, 72], [81, 92]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L29", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R29", "blocks": [[1, 3]], "xshift": 66, "sameY": true}, {"row": 30, "blocks": [[1, 11], [21, 31], [61, 71], [81, 91]]}, {"row": 31, "blocks": [[1, 11], [81, 91]]}]}, {"name": "2階", "rows": [{"row": 1, "blocks": [[1, 9], [21, 29], [41, 52], [61, 69], [81, 89]]}, {"row": "L1", "blocks": [[1, 6]], "xshift": -8, "sameY": true}, {"row": "R1", "blocks": [[1, 6]], "xshift": 64, "sameY": true}, {"row": 2, "blocks": [[1, 9], [21, 29], [41, 51], [61, 69], [81, 89]]}, {"row": "L2", "blocks": [[1, 6]], "xshift": -8, "sameY": true}, {"row": "R2", "blocks": [[1, 6]], "xshift": 64, "sameY": true}, {"row": 3, "blocks": [[1, 9], [21, 29], [41, 52], [61, 69], [81, 89]]}, {"row": "L3", "blocks": [[1, 6]], "xshift": -8, "sameY": true}, {"row": "R3", "blocks": [[1, 6]], "xshift": 64, "sameY": true}, {"row": 4, "blocks": [[1, 9], [21, 29], [41, 51], [61, 69], [81, 89]]}, {"row": "L4", "blocks": [[1, 6]], "xshift": -8, "sameY": true}, {"row": "R4", "blocks": [[1, 6]], "xshift": 64, "sameY": true}, {"row": 5, "blocks": [[1, 10], [21, 30], [41, 52], [61, 70], [81, 90]]}, {"row": "L5", "blocks": [[1, 6]], "xshift": -8, "sameY": true}, {"row": "R5", "blocks": [[1, 6]], "xshift": 64, "sameY": true}, {"row": 6, "blocks": [[1, 10], [21, 30], [41, 51], [61, 70], [81, 90]]}, {"row": "L6", "blocks": [[1, 6]], "xshift": -8, "sameY": true}, {"row": "R6", "blocks": [[1, 6]], "xshift": 64, "sameY": true}, {"row": 7, "blocks": [[1, 10], [21, 30], [41, 52], [61, 70], [81, 90]]}, {"row": "L7", "blocks": [[1, 6]], "xshift": -8, "sameY": true}, {"row": "R7", "blocks": [[1, 6]], "xshift": 64, "sameY": true}, {"row": 8, "blocks": [[1, 10], [21, 31], [41, 51], [61, 71], [81, 90]]}, {"row": 9, "blocks": [[1, 10], [21, 30], [41, 52], [61, 70], [81, 90]]}, {"row": 10, "blocks": [[1, 11], [21, 31], [41, 51], [61, 71], [81, 91]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L10", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R10", "blocks": [[1, 3]], "xshift": 64, "sameY": true}, {"row": 11, "blocks": [[1, 11], [21, 31], [41, 52], [61, 71], [81, 91]], "left_box": "L1-L4", "right_box": "R1-R4"}, {"row": "L11", "blocks": [[1, 4]], "xshift": -6, "sameY": true}, {"row": "R11", "blocks": [[1, 4]], "xshift": 64, "sameY": true}, {"row": 12, "blocks": [[1, 11], [21, 31], [41, 51], [61, 71], [81, 91]], "left_box": "L1-L4", "right_box": "R1-R4"}, {"row": "L12", "blocks": [[1, 4]], "xshift": -6, "sameY": true}, {"row": "R12", "blocks": [[1, 4]], "xshift": 64, "sameY": true}, {"row": 13, "blocks": [[1, 11], [21, 31], [41, 52], [61, 71], [81, 91]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L13", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R13", "blocks": [[1, 3]], "xshift": 64, "sameY": true}, {"row": 14, "blocks": [[1, 12], [21, 31], [41, 51], [61, 71], [81, 92]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L14", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R14", "blocks": [[1, 3]], "xshift": 64, "sameY": true}, {"row": 15, "blocks": [[1, 12], [21, 31], [41, 52], [61, 71], [81, 92]], "left_box": "L1-L3", "right_box": "R1-R3"}, {"row": "L15", "blocks": [[1, 3]], "xshift": -5, "sameY": true}, {"row": "R15", "blocks": [[1, 3]], "xshift": 64, "sameY": true}, {"row": 16, "blocks": [[1, 12], [21, 29], [41, 53], [61, 69], [81, 92]], "left_box": "L1-L2", "right_box": "R1-R2"}, {"row": "L16", "blocks": [[1, 2]], "xshift": -4, "sameY": true}, {"row": "R16", "blocks": [[1, 2]], "xshift": 64, "sameY": true}, {"row": 17, "blocks": [[1, 12], [21, 28], [61, 68], [81, 92]]}]}], "classes": [{"class": "SS", "floor": "1階", "note": "1〜7列の中央3ブロック(21〜/41〜/61〜番台)。1列: 21-26/41-51/61-66、2〜4列: 〜28/〜52/〜68、5〜7列: 〜29/〜51or52/〜69", "count": 194}, {"class": "S+", "floor": "1階", "note": "2〜21列の両端ブロック(1〜番台・81〜番台)全て + 8〜21列の中央3ブロック", "count": 825}, {"class": "S", "floor": "1階", "note": "22〜31列の全ブロック + L1-L3/R1-R3ボックス(22〜29列)", "count": 590}, {"class": "S", "floor": "2階", "note": "1〜7列の全5ブロック", "count": 345}, {"class": "A", "floor": "2階", "note": "8〜9列の全5ブロック(105席) + 両サイドボックスL1-L6/R1-R6×各7列(84席)", "count": 189}, {"class": "B", "floor": "2階", "note": "10〜17列の全ブロック + 下部サイドボックス(10〜16列, L1-L4/R1-R4まで)", "count": 476}], "builtin": true}, {"id": "tokyo", "name": "東京宝塚劇場", "total": 2079, "floors": [{"name": "1階", "rows": [{"row": 1, "blocks": [[11, 20], [31, 50], [51, 60]]}, {"row": 2, "blocks": [[11, 21], [31, 49], [51, 61]]}, {"row": 3, "blocks": [[11, 23], [31, 50], [51, 63]]}, {"row": 4, "blocks": [[11, 25], [31, 49], [51, 65]]}, {"row": 5, "blocks": [[11, 26], [31, 50], [51, 66]]}, {"row": 6, "blocks": [[11, 27], [31, 49], [51, 67]]}, {"row": 7, "blocks": [[11, 27], [31, 50], [51, 67]]}, {"row": 8, "blocks": [[11, 28], [31, 49], [51, 68]]}, {"row": 9, "blocks": [[11, 28], [31, 50], [51, 68]]}, {"row": 10, "blocks": [[11, 29], [31, 49], [51, 69]]}, {"row": 11, "blocks": [[11, 29], [31, 50], [51, 69]]}, {"row": 12, "blocks": [[11, 29], [31, 49], [51, 69]]}, {"row": 13, "blocks": [[11, 29], [31, 50], [51, 69]]}, {"row": 14, "blocks": [[11, 29], [31, 49], [51, 69]]}, {"row": 15, "blocks": [[11, 29], [31, 50], [51, 69]]}, {"row": 16, "blocks": [[11, 29], [31, 49], [51, 69]]}, {"row": 17, "blocks": [[11, 29], [31, 50], [51, 69]]}, {"row": 18, "blocks": [[11, 29], [31, 49], [51, 69]]}, {"row": 19, "blocks": [[15, 29], [31, 50], [51, 69]], "note": "左端11〜14は車いすスペース（座席数に含まず）"}, {"row": 20, "blocks": [[11, 29], [31, 49], [51, 65]], "note": "右端66〜69は車いすスペース（座席数に含まず）"}, {"row": 21, "blocks": [[11, 24], [31, 48], [51, 64]]}, {"row": 22, "blocks": [[11, 24], [31, 47], [51, 64]]}, {"row": 23, "blocks": [[11, 24], [31, 46], [51, 64]]}, {"row": 24, "blocks": [[11, 25], [51, 65]], "note": "中央ブロックなし"}]}, {"name": "2階", "rows": [{"row": 1, "blocks": [[1, 4], [11, 27], [31, 46], [51, 67], [71, 74]]}, {"row": 2, "blocks": [[1, 4], [11, 27], [31, 46], [51, 67], [71, 74]]}, {"row": 3, "blocks": [[1, 4], [11, 27], [31, 46], [51, 67], [71, 74]]}, {"row": 4, "blocks": [[1, 4], [11, 27], [31, 46], [51, 67], [71, 74]]}, {"row": 5, "blocks": [[1, 4], [11, 27], [31, 46], [51, 67], [71, 74]]}, {"row": 6, "blocks": [[1, 4], [11, 27], [31, 46], [51, 67], [71, 74]]}, {"row": 7, "blocks": [[1, 3], [11, 16], [23, 27], [31, 46], [51, 55], [62, 67], [71, 73]], "note": "17〜22は音響ブース(2-2)、56〜61は照明ブース(2-3)のため欠番"}, {"row": 8, "blocks": [[1, 3], [11, 16], [23, 27], [31, 46], [51, 55], [62, 67], [71, 73]], "note": "17〜22・56〜61はブースのため欠番"}, {"row": 9, "blocks": [[1, 3], [11, 16], [23, 27], [31, 46], [51, 55], [62, 67], [71, 73]], "note": "17〜22・56〜61はブースのため欠番"}, {"row": 10, "blocks": [[1, 3], [11, 16], [23, 27], [31, 46], [51, 55], [62, 67], [71, 73]], "note": "17〜22・56〜61はブースのため欠番"}, {"row": 11, "blocks": [[1, 2], [11, 27], [31, 46], [51, 67], [71, 72]]}, {"row": 12, "blocks": [[1, 3], [11, 27], [31, 46], [51, 67], [71, 73]]}, {"row": 13, "blocks": [[1, 3], [11, 27], [31, 46], [51, 67], [71, 73]]}, {"row": 14, "blocks": [[1, 3], [11, 27], [31, 46], [51, 67], [71, 73]]}, {"row": 15, "blocks": [[1, 3], [11, 27], [31, 46], [51, 67], [71, 73]]}, {"row": 16, "blocks": [[1, 3], [11, 28], [51, 68], [71, 73]], "note": "中央ブロックなし"}]}], "classes": [{"class": "SS", "floor": "1階", "note": "1〜7列の中央ブロック（31〜50／偶数列は31〜49）。緑の囲み内", "count": 137}, {"class": "S", "floor": "1階", "note": "1階のSS席以外すべて（1〜24列の左右ブロックと8〜23列の中央ブロック）", "count": 1098}, {"class": "S", "floor": "2階", "note": "1〜6列全席（緑線より前方）", "count": 348}, {"class": "A", "floor": "2階", "note": "7〜11列全席（2本の緑線の間）", "count": 230}, {"class": "B", "floor": "2階", "note": "12〜16列全席（後方緑線より後ろ）", "count": 266}], "builtin": true}, {"id": "bow", "name": "宝塚バウホール", "total": 526, "floors": [{"name": "1階", "rows": [{"row": 1, "blocks": [[8, 12], [13, 24], [25, 29]]}, {"row": 2, "blocks": [[7, 12], [13, 24], [25, 30]]}, {"row": 3, "blocks": [[5, 12], [13, 24], [25, 32]]}, {"row": 4, "blocks": [[4, 12], [13, 24], [25, 33]]}, {"row": 5, "blocks": [[2, 12], [13, 24], [25, 35]]}, {"row": 6, "blocks": [[2, 12], [13, 24], [25, 35]]}, {"row": 7, "blocks": [[2, 12], [13, 24], [25, 35]]}, {"row": 8, "blocks": [[2, 12], [13, 24], [25, 35]]}, {"row": 9, "blocks": [[1, 12], [13, 24], [25, 36]]}, {"row": 10, "blocks": [[1, 12], [13, 24], [25, 36]]}, {"row": 11, "blocks": [[1, 12], [13, 24], [25, 36]]}, {"row": 12, "blocks": [[1, 12], [13, 24], [25, 36]]}, {"row": 13, "blocks": [[2, 12], [13, 24], [25, 35]]}, {"row": 14, "blocks": [[3, 12], [13, 24], [25, 34]]}, {"row": 15, "blocks": [[5, 12], [13, 24], [25, 32]]}, {"row": 16, "blocks": [[7, 12], [13, 24], [25, 30]]}, {"row": 17, "blocks": [[7, 12], [13, 24], [25, 30]]}]}], "classes": [{"class": "全席指定", "floor": "1階", "note": "", "count": 526}], "builtin": true}];
+</script>
+<script>
+/* ================= 接続設定（ビルド時に注入） ================= */
+const API_URL = "https://arezgremacymxvqwhzrv.supabase.co/functions/v1/tsugi-api";
+const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyZXpncmVtYWN5bXh2cXdoenJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDYzNjMsImV4cCI6MjA5Nzg4MjM2M30.htZGTQQQi31Q_0jJOP-xKVXNdzyUdq8c0geitp-urqQ";   // Supabase匿名キー（ブラウザ埋め込み前提の公開可能キー）
+const DOC_NAMES = ["people","shows","applications","customTheaters","settings"];
+const LEGACY_KEY = "isolla_tsugi_v1";        // 旧ローカル版データ（移行用）
+const MIRROR_KEY = "isolla_tsugi_mirror_v2"; // 未送信時の安全ミラー
+const PW_KEY     = "isolla_tsugi_pw";        // 「ログイン状態を保持」用
+
+const TYPE_LABEL = {guest:"お客様", staff:"スタッフ", member:"会員", family:"親類", other:"その他"};
+const ST_LABEL = {pending:"未処理", proposed:"案:○", proposedNg:"案:×", ok:"確定○", ng:"取次不可", transfer:"振替案内中", transferred:"振替済", refund:"返金対象", refunded:"返金済"};
+const DEFAULT_TEMPLATE = `（お名前）様
+
+いつも美空真瑠に温かいご声援を賜りまして誠にありがとうございます✨
+🌸{組}　{劇場}公演🌸
+
+{公演タイトル}
+
+【取次公演日時、枚数】
+{取次リスト}
+
+【チケットお受け取り時間】
+{受取時間案内}
+
+※時間内のチケット受取が難しい場合は必ず
+会携帯({会携帯}）
+までご連絡をお願いします
+
+【チケットお渡し場所】
+{受取場所}
+
+【注意事項】
+◎お受け取り後、チケット封筒は速やかに鞄の中へおしまいください
+◎楽屋口への差し入れは、チケットお渡し時にお預かりいたします
+◎スムーズなチケットお渡しの為、お受け取り時間には余裕をもってお越しください
+
+ご不明な点がございましたら、下記連絡先までお問い合わせください
+当日のお越しを心よりお待ちしております
+
+CERCLE Mi-Sol-La
+会携帯
+({会携帯}）`;
+
+function defaults(){
+  return {
+    people: [], shows: [], applications: [], customTheaters: [],
+    settings: {
+      weights: {guest:100, staff:80, family:70, member:40, other:20, year:5, supportDiv:1000, bday:15, bdayRange:7, premiere:30},
+      template: DEFAULT_TEMPLATE
+    }
+  };
+}
+let DB = defaults();          // ログイン後にクラウドから読み込む
+let PASSWORD = null;
+let baseVer = {};             // ドキュメントごとのサーバー版数
+let lastPushed = {};          // 最後に送信したJSON
+let dirtyDocs = new Set();
+let pushTimer = null, pushing = false, pollTimer = null;
+const CLIENT_ID = (()=>{ let c=localStorage.getItem("tsugi_client"); if(!c){c=Math.random().toString(36).slice(2,8);localStorage.setItem("tsugi_client",c);} return c; })();
+
+function normalizeDB(d){
+  const base = defaults();
+  const cloudWeights = (d.settings||{}).weights||{};
+  d.settings = Object.assign({}, base.settings, d.settings||{});
+  d.settings.weights = Object.assign({}, base.settings.weights, cloudWeights);
+  for(const k of ["people","shows","applications","customTheaters"]) if(!Array.isArray(d[k])) d[k]=[];
+  return d;
+}
+
+/* ================= API呼び出し ================= */
+async function api(action, payload){
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {"Content-Type":"application/json", "Authorization":"Bearer "+API_KEY, "apikey":API_KEY},
+    body: JSON.stringify(Object.assign({action, password:PASSWORD}, payload||{}))
+  });
+  let data = null;
+  try{ data = await res.json(); }catch(e){}
+  return {status:res.status, data};
+}
+
+/* ================= 同期状態表示 ================= */
+function setSync(state, msg){
+  const el=document.getElementById("saveState");
+  if(!el) return;
+  const icons={ok:"🟢", saving:"🟡", offline:"🔴", idle:""};
+  el.textContent=(icons[state]||"")+" "+(msg||"");
+}
+
+/* ================= ログイン ================= */
+async function tryLogin(pw, remember, silent){
+  const status=document.getElementById("loginStatus");
+  if(!silent) status.textContent="確認中…";
+  PASSWORD=pw;
+  let r;
+  try{ r=await api("login"); }
+  catch(e){ status.textContent="接続できませんでした。インターネット接続をご確認ください。"; PASSWORD=null; return false; }
+  if(r.status===200 && r.data?.ok){
+    if(remember) localStorage.setItem(PW_KEY, pw);
+    document.getElementById("loginOverlay").style.display="none";
+    await loadState();
+    return true;
+  }
+  PASSWORD=null;
+  status.textContent = r.status===401 ? "パスワードが違います" : "エラーが発生しました（"+r.status+"）";
+  return false;
+}
+function doLogin(){
+  const pw=document.getElementById("loginPw").value;
+  const rem=document.getElementById("loginRemember").checked;
+  if(!pw){ document.getElementById("loginStatus").textContent="パスワードを入力してください"; return; }
+  tryLogin(pw, rem, false);
+}
+function logout(){
+  localStorage.removeItem(PW_KEY);
+  location.reload();
+}
+
+/* ================= 読み込み・保存（クラウド同期） ================= */
+async function loadState(){
+  setSync("saving","読み込み中…");
+  const r=await api("get_state");
+  if(r.status!==200){ setSync("offline","読み込み失敗"); alert("データの読み込みに失敗しました。再読み込みしてください。"); return; }
+  const docs=r.data.docs;
+  const d={};
+  for(const name of DOC_NAMES){
+    d[name]=docs[name]?docs[name].data:(name==="settings"?{}:[]);
+    baseVer[name]=docs[name]?docs[name].version:0;
+    lastPushed[name]=JSON.stringify(d[name]);
+  }
+  DB=normalizeDB(d);
+  // 旧ローカル版からの移行提案（クラウドが空のときだけ）
+  const empty = !DB.people.length && !DB.shows.length && !DB.applications.length;
+  const legacy = localStorage.getItem(LEGACY_KEY);
+  if(empty && legacy){
+    try{
+      const old=JSON.parse(legacy);
+      if((old.people?.length||old.shows?.length) &&
+         confirm("この端末に旧バージョン（ローカル保存）のデータが見つかりました。\nクラウドに移行しますか？\n（名簿"+(old.people?.length||0)+"名・公演"+(old.shows?.length||0)+"件・申込"+(old.applications?.length||0)+"件）")){
+        DB=normalizeDB(old);
+        DOC_NAMES.forEach(n=>dirtyDocs.add(n));
+        schedulePush();
+        localStorage.removeItem(LEGACY_KEY);
+      }
+    }catch(e){}
+  }
+  setSync("ok","同期済み");
+  fillShowSelectors();
+  refreshTab(currentTab()||"dashboard");
+  updateFooter();
+  startPolling();
+}
+function save(){
+  // ローカルミラー（安全用）＋クラウド送信予約
+  try{ localStorage.setItem(MIRROR_KEY, JSON.stringify(DB)); }catch(e){}
+  for(const name of DOC_NAMES){
+    const j=JSON.stringify(DB[name]);
+    if(j!==lastPushed[name]) dirtyDocs.add(name);
+  }
+  if(dirtyDocs.size) schedulePush();
+  updateFooter();
+}
+function updateFooter(){
+  const el=document.getElementById("dataCount");
+  if(el) el.textContent=`名簿 ${DB.people.length}名 ／ 公演 ${DB.shows.length}件 ／ 申込 ${DB.applications.length}件`;
+}
+function schedulePush(){
+  clearTimeout(pushTimer);
+  setSync("saving","保存中…");
+  pushTimer=setTimeout(pushDirty, 700);
+}
+async function pushDirty(){
+  if(pushing){ schedulePush(); return; }
+  pushing=true;
+  try{
+    for(const name of [...dirtyDocs]){
+      const j=JSON.stringify(DB[name]);
+      let r;
+      try{ r=await api("save_doc",{name, data:DB[name], baseVersion:baseVer[name]||0, client:CLIENT_ID}); }
+      catch(e){ setSync("offline","未同期（接続待ち）"); setTimeout(schedulePush,15000); return; }
+      if(r.status===200 && r.data?.ok){
+        baseVer[name]=r.data.version; lastPushed[name]=j; dirtyDocs.delete(name);
+      }else if(r.status===409 && r.data?.current){
+        alert("他の端末で更新されていたため、最新の内容を読み込み直します。\n（この端末での直前の変更は反映されていない場合があります。お手数ですが内容をご確認ください）");
+        DB[name]=r.data.current.data;
+        normalizeDB(DB);
+        baseVer[name]=r.data.current.version;
+        lastPushed[name]=JSON.stringify(DB[name]);
+        dirtyDocs.delete(name);
+        refreshTab(currentTab());
+      }else{
+        setSync("offline","保存エラー"); setTimeout(schedulePush,15000); return;
+      }
+    }
+    setSync("ok","同期済み "+new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}));
+  } finally { pushing=false; }
+}
+function startPolling(){
+  clearInterval(pollTimer);
+  pollTimer=setInterval(async()=>{
+    if(dirtyDocs.size||pushing) return;
+    let r; try{ r=await api("get_state"); }catch(e){ return; }
+    if(r.status!==200) return;
+    let changed=false;
+    for(const name of DOC_NAMES){
+      const doc=r.data.docs[name];
+      if(doc && doc.version>(baseVer[name]||0) && !dirtyDocs.has(name)){
+        DB[name]=doc.data; baseVer[name]=doc.version; lastPushed[name]=JSON.stringify(doc.data); changed=true;
+      }
+    }
+    if(changed){ normalizeDB(DB); fillShowSelectors(); refreshTab(currentTab()); updateFooter(); setSync("ok","同期済み（他端末の更新を反映）"); }
+  }, 45000);
+}
+
+/* ================= ユーティリティ ================= */
+function uid(){ return Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
+function esc(s){ return String(s??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function yen(n){ return n==null||n===""?"":Number(n).toLocaleString("ja-JP")+"円"; }
+const WEEKDAYS=["日","月","火","水","木","金","土"];
+function fmtDate(iso){ if(!iso) return ""; const d=new Date(iso+"T00:00:00"); return `${d.getMonth()+1}月${d.getDate()}日(${WEEKDAYS[d.getDay()]})`; }
+function fmtDateShort(iso){ if(!iso) return ""; const d=new Date(iso+"T00:00:00"); return `${d.getMonth()+1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`; }
+
+/* ================= タブ ================= */
+document.getElementById("mainNav").addEventListener("click", e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  document.querySelectorAll("#mainNav button").forEach(x=>x.classList.toggle("active",x===b));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.id==="tab-"+b.dataset.tab));
+  refreshTab(b.dataset.tab);
+});
+function refreshTab(name){
+  ({dashboard:renderDash, people:renderPeople, shows:renderShows, apps:renderApps,
+    alloc:renderAlloc, seats:renderSeatTab, msg:renderMsgTab, refund:renderRefund,
+    settings:renderSettings}[name]||(()=>{}))();
+}
+function currentTab(){ return document.querySelector("#mainNav button.active")?.dataset.tab; }
+function rerender(){ save(); refreshTab(currentTab()); }
+
+/* ================= ダイアログ基盤 ================= */
+function showDialog(title, bodyHtml, onOpen){
+  const host=document.getElementById("dialogHost");
+  host.innerHTML=`<dialog id="dlg"><div class="dlg-head"><span>${esc(title)}</span><button onclick="closeDialog()">×</button></div><div class="dlg-body">${bodyHtml}</div></dialog>`;
+  const dlg=document.getElementById("dlg");
+  dlg.showModal();
+  dlg.addEventListener("cancel",()=>closeDialog());
+  if(onOpen) onOpen(dlg);
+}
+function closeDialog(){ const d=document.getElementById("dlg"); if(d){d.close(); d.remove();} }
+
+/* ================= 優先スコア ================= */
+function fcYears(p){
+  let n=0;
+  if(p.years && typeof p.years==="object") n=Object.keys(p.years).filter(y=>p.years[y]).length;
+  else n=Number(p.fcYears)||0;
+  return n+(Number(p.extraYears)||0);
+}
+function scoreOf(personId, app){
+  const w=DB.settings.weights;
+  const p=DB.people.find(x=>x.id===personId);
+  const type=p?p.type:"other";
+  let s=(w[type]??0);
+  if(p) s+=fcYears(p)*(w.year||0)+(Number(p.bonus)||0);
+  if(app) s+=Math.floor((Number(app.support)||0)/(w.supportDiv||1000));
+  return s;
+}
+// 誕生日と公演日の近さ（±日数）。誕生日未登録なら null
+function bdayDiff(person, perfDate){
+  if(!person?.birthday||!perfDate) return null;
+  const [bm,bd]=person.birthday.split("-").map(Number);
+  const d=new Date(perfDate+"T00:00:00");
+  let diff=Infinity;
+  for(const y of [d.getFullYear()-1, d.getFullYear(), d.getFullYear()+1]){
+    const b=new Date(y, bm-1, bd);
+    diff=Math.min(diff, Math.abs(Math.round((d-b)/86400000)));
+  }
+  return diff;
+}
+// この回に対する誕生日加点（設定の範囲内なら加点）
+function bdayBonus(person, perf){
+  const w=DB.settings.weights;
+  const diff=bdayDiff(person, perf?.date);
+  if(diff==null||diff>(w.bdayRange??7)) return 0;
+  return Number(w.bday)||0;
+}
+// 初日・千秋楽の日付
+function showEdgeDates(show){
+  const ds=(show?.performances||[]).map(p=>p.date).filter(Boolean).sort();
+  return ds.length?{first:ds[0], last:ds[ds.length-1]}:{first:null, last:null};
+}
+// 初日・千秋楽は親類・お客様・スタッフを優先（設定で加点変更可）
+function premiereBonus(person, perf, show){
+  const w=DB.settings.weights;
+  const b=Number(w.premiere)||0;
+  if(!person||!perf||!b) return 0;
+  const {first,last}=showEdgeDates(show);
+  if(perf.date!==first && perf.date!==last) return 0;
+  return ["guest","staff","family"].includes(person.type)?b:0;
+}
+function premiereLabel(perf, show){
+  const {first,last}=showEdgeDates(show);
+  if(!perf||!first) return "";
+  if(perf.date===first) return "初日";
+  if(perf.date===last) return "千秋楽";
+  return "";
+}
+function bdayBadge(person, perf){
+  const diff=bdayDiff(person, perf?.date);
+  if(diff==null||diff>(DB.settings.weights.bdayRange??7)) return "";
+  return `<span class="tag" style="background:#ffe8f0;color:#c2185b" title="誕生日 ${bdayText(person)}">🎂${diff===0?"当日!":"±"+diff+"日"}</span>`;
+}
+
+/* ================= ホーム ================= */
+function renderDash(){
+  const el=document.getElementById("dashBody");
+  const activeShows=DB.shows;
+  let html="";
+  html+=`<div class="flex" style="margin-bottom:14px">
+    <div class="pill-stat"><span class="v">${DB.people.length}</span><span class="k">名簿登録</span></div>
+    <div class="pill-stat"><span class="v">${DB.shows.length}</span><span class="k">公演</span></div>
+    <div class="pill-stat"><span class="v">${DB.applications.length}</span><span class="k">申込件数</span></div>
+  </div>`;
+  if(!activeShows.length){
+    html+=`<div class="card"><p>ようこそ、CERCLE Mi-Sol-La お取次ぎ管理システムへ 🌸</p>
+    <p class="muted" style="margin-top:8px">まずは
+    ① <b>名簿</b>タブでファンクラブ会員・お客様・スタッフのExcelを読み込み →
+    ② <b>公演</b>タブで公演と各回を登録（日程ページURLからの取り込みが便利です）→
+    ③ <b>申込</b>タブでLINEの申込テキストを貼り付け、の順に進めてくださいね。</p></div>`;
+  }
+  for(const show of activeShows){
+    const perfs=show.performances||[];
+    const apps=DB.applications.filter(a=>a.showId===show.id);
+    let entries=0, okc=0, ngc=0, pend=0;
+    for(const a of apps) for(const en of a.entries){ entries++;
+      if(en.status==="ok"||en.status==="transferred") okc++;
+      else if(["ng","refund","refunded"].includes(en.status)) ngc++;
+      else pend++;
+    }
+    const capTotal=perfs.reduce((s,p)=>s+(Number(p.capacity)||0),0);
+    html+=`<div class="card"><div class="spread"><h3 style="margin:0">🎭 ${esc(show.title)} <span class="muted">${esc(theaterOf(show)?.name||"")}・全${perfs.length}回</span></h3>
+      <span class="muted">付与枚数合計 ${capTotal||"未定"}枚</span></div>
+      <div class="flex" style="margin-top:8px">
+        <span class="tag st-ok">確定 ${okc}</span><span class="tag st-pending">未処理/案 ${pend}</span><span class="tag st-ng">不可/返金 ${ngc}</span>
+        <span class="muted">申込 ${apps.length}名・のべ${entries}口</span>
+      </div></div>`;
+  }
+  el.innerHTML=html;
+}
+
+/* ================= 名簿 ================= */
+function renderPeople(){
+  const q=(document.getElementById("peopleSearch").value||"").trim();
+  const f=document.getElementById("peopleFilter").value;
+  let list=DB.people.slice();
+  if(f) list=list.filter(p=>p.type===f);
+  if(q) list=list.filter(p=>(p.name||"").includes(q)||(p.kana||"").includes(q)||(p.phone||"").includes(q));
+  list.sort((a,b)=> (a.kana||a.name||"").localeCompare(b.kana||b.name||"","ja"));
+  const cnt={};
+  for(const p of DB.people) cnt[p.type]=(cnt[p.type]||0)+1;
+  document.getElementById("peopleStats").textContent =
+    Object.entries(cnt).map(([k,v])=>`${TYPE_LABEL[k]||k}:${v}名`).join("　");
+  const rows=list.map(p=>`<tr>
+    <td><b>${esc(p.name)}</b><br><span class="muted">${esc(p.kana||"")}</span></td>
+    <td><span class="tag ${p.type}">${TYPE_LABEL[p.type]||""}</span>${p.memberNos?`<br><span class="muted" style="font-size:10.5px">${esc(Object.entries(p.memberNos).sort().map(([y,n])=>`'${String(y).slice(-2)}:${n}`).join(" "))}</span>`:""}</td>
+    <td>${esc(p.phone||"")}${p.email?`<br><span class="muted" style="font-size:10.5px">${esc(p.email)}</span>`:""}</td>
+    <td>${p.birthday?`🎂 ${bdayText(p)}`:"<span class='muted'>−</span>"}</td>
+    <td>${p.type==="member"?`${fcYears(p)}年<br><span class="muted">${esc(memberYearsText(p))}</span>`:"−"}</td>
+    <td>${p.bonus?(p.bonus>0?"+":"")+p.bonus:""}</td>
+    <td class="muted">${esc(p.note||"")}</td>
+    <td class="no-print" style="white-space:nowrap">
+      <button class="btn mini ghost" onclick="openPersonDialog('${p.id}')">編集</button>
+      <button class="btn mini danger" onclick="deletePerson('${p.id}')">削除</button></td>
+  </tr>`).join("");
+  document.getElementById("peopleTable").innerHTML =
+    `<tr><th>お名前</th><th>区分・会員No.</th><th>電話</th><th>誕生日</th><th>FC在籍</th><th>補正</th><th>備考</th><th class="no-print"></th></tr>`+
+    (rows||`<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">まだ登録がありません。「Excel/CSV読み込み」または「手動で追加」からどうぞ。</td></tr>`);
+}
+function memberYearsText(p){
+  if(!p.years) return "";
+  return Object.keys(p.years).filter(y=>p.years[y]).sort().map(y=>y+"年度").join("・");
+}
+function deletePerson(id){
+  const p=DB.people.find(x=>x.id===id);
+  if(!confirm(`${p?.name} さんを名簿から削除しますか？`)) return;
+  DB.people=DB.people.filter(x=>x.id!==id);
+  rerender();
+}
+function openPersonDialog(id){
+  const p=id?DB.people.find(x=>x.id===id):null;
+  showDialog(p?"名簿の編集":"名簿に追加", `
+    <div class="row">
+      <div class="grow"><label class="fld">お名前 *</label><input type="text" id="pf_name" value="${esc(p?.name||"")}"></div>
+      <div class="grow"><label class="fld">ふりがな</label><input type="text" id="pf_kana" value="${esc(p?.kana||"")}"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div><label class="fld">区分</label><select id="pf_type">
+        ${Object.entries(TYPE_LABEL).map(([k,v])=>`<option value="${k}" ${p?.type===k?"selected":""}>${v}</option>`).join("")}
+      </select></div>
+      <div class="grow"><label class="fld">電話番号</label><input type="tel" id="pf_phone" value="${esc(p?.phone||"")}"></div>
+      <div><label class="fld">優先補正（±）</label><input type="number" id="pf_bonus" value="${p?.bonus||0}" style="width:100px"></div>
+      <div><label class="fld">誕生日（例 6/15）</label><input type="text" id="pf_bday" value="${p?.birthday?bdayText(p):""}" style="width:100px" placeholder="月/日"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="flex"><label class="fld" style="margin:0">FC在籍年度：</label>
+        ${(()=>{const now=new Date().getFullYear(); const set=new Set();
+          for(let y=2024;y<=now+1;y++) set.add(y);
+          Object.keys(p?.years||{}).forEach(y=>set.add(Number(y)));
+          return [...set].sort().map(y=>`<label style="font-size:13px"><input type="checkbox" class="chk" id="pf_y${y}" ${p?.years?.[y]?"checked":""}> ${y}</label>`).join("");})()}
+        <span class="muted">＋それ以前</span><input type="number" id="pf_extra" value="${p?.extraYears||0}" style="width:70px" title="2024年度より前からの在籍年数を足す">年</span>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow"><label class="fld">メールアドレス</label><input type="text" id="pf_mail" value="${esc(p?.email||"")}"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow"><label class="fld">返金口座（分かれば）</label><input type="text" id="pf_bank" value="${esc(p?.bank||"")}" placeholder="○○銀行 ○○支店 普通 1234567 名義"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow"><label class="fld">備考</label><input type="text" id="pf_note" value="${esc(p?.note||"")}"></div>
+    </div>
+    <div class="flex" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+      <button class="btn" onclick="savePerson('${id||""}')">保存</button>
+    </div>`);
+}
+function savePerson(id){
+  const name=document.getElementById("pf_name").value.trim();
+  if(!name){ alert("お名前を入力してください"); return; }
+  const years={};
+  document.querySelectorAll("#dlg input[id^='pf_y']").forEach(cb=>{ if(cb.checked&&/^\d+$/.test(cb.id.slice(4))) years[cb.id.slice(4)]=true; });
+  const obj={
+    email:document.getElementById("pf_mail").value.trim(),
+    name, kana:document.getElementById("pf_kana").value.trim(),
+    type:document.getElementById("pf_type").value,
+    phone:document.getElementById("pf_phone").value.trim(),
+    bonus:Number(document.getElementById("pf_bonus").value)||0,
+    years, extraYears:Number(document.getElementById("pf_extra").value)||0,
+    bank:document.getElementById("pf_bank").value.trim(),
+    note:document.getElementById("pf_note").value.trim()
+  };
+  const bd=parseBirthday(document.getElementById("pf_bday").value.trim());
+  obj.birthday=bd?bd.md:null;
+  if(id){ Object.assign(DB.people.find(x=>x.id===id), obj); }
+  else { obj.id=uid(); DB.people.push(obj); }
+  closeDialog(); rerender();
+}
+
+/* ---------- Excel / CSV 読み込み ---------- */
+let importCtx=null;
+function openImportDialog(){
+  if(typeof XLSX==="undefined"){
+    alert("Excel読み込み用ライブラリ（SheetJS）が読み込めていません。インターネット接続を確認してページを再読み込みしてください。\n※CSVの場合も同様です。");
+    return;
+  }
+  showDialog("Excel/CSV 名簿読み込み", `
+    <p class="muted">ファンクラブ会員リスト（年度別）・お客様リスト・スタッフリストのExcel/CSVを読み込めます。同姓同名（または同じ電話番号）は自動で同一人物にまとめます。</p>
+    <div class="row" style="margin-top:10px">
+      <div><label class="fld">このリストの区分</label><select id="imp_type">
+        <option value="member">FC会員リスト</option><option value="guest">お客様リスト</option>
+        <option value="staff">スタッフリスト</option><option value="family">親類</option><option value="other">その他</option>
+      </select></div>
+      <div id="imp_yearWrap"><label class="fld">年度（会員リストのみ）</label><select id="imp_year">
+        ${(()=>{const now=new Date().getFullYear(); const opts=[];
+          for(let y=now+2; y>=2024; y--) opts.push(`<option value="${y}" ${y===now?"selected":""}>${y}年度</option>`);
+          return opts.join("");})()}
+      </select></div>
+      <div class="grow"><label class="fld">ファイル</label><input type="file" id="imp_file" accept=".xlsx,.xls,.csv" onchange="loadImportFile(this)"></div>
+    </div>
+    <div id="imp_map"></div>
+    <div id="imp_preview"></div>
+    <div class="flex" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+      <button class="btn" id="imp_go" style="display:none" onclick="runImport()">この内容で読み込む</button>
+    </div>`);
+}
+function loadImportFile(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:"array"});
+    importCtx={wb, sheet:wb.SheetNames[0]};
+    renderImportMap();
+  };
+  reader.readAsArrayBuffer(file);
+}
+function colLetter(i){ let s=""; i=Number(i); do{ s=String.fromCharCode(65+(i%26))+s; i=Math.floor(i/26)-1; }while(i>=0); return s; }
+// 名前のクリーニング：ルビ混入・敬称・全角スペースに対応
+function cleanName(s){
+  s=String(s??"").replace(/[　\s]+/g," ").trim();
+  const i=s.indexOf("様");
+  if(i>=0) s=s.slice(0,i);          // 「安藤 純子 様アンドウ…」→ 様以降（ルビ含む）を除去
+  s=s.replace(/(さま|さん|殿|君)$/,"");
+  return s.trim();
+}
+// 照合キー：NFKC正規化（半角ｶﾅ→全角など）＋スペース除去。「ウｪ」と「ェ」の表記ゆれも同一視
+function nameKey(s){ return cleanName(s).normalize("NFKC").replace(/[　\s]/g,""); }
+function kanaKey(s){
+  // ひらがな/カタカナ・半角/全角のゆれを吸収
+  return String(s??"").normalize("NFKC").replace(/[　\s]/g,"")
+    .replace(/[ァ-ヶ]/g, c=>String.fromCharCode(c.charCodeAt(0)-0x60));
+}
+function phoneKey(s){ return String(s??"").replace(/\D/g,""); }
+// 振込先の省略表記を展開（「B」→銀行、「普123」→普通 123）
+function normBank(s){
+  s=String(s??"").trim();
+  if(!s) return "";
+  s=s.normalize("NFKC");
+  s=s.replace(/B\./g,"銀行 ").replace(/B(?=[^\x00-\x7F]|\s|$)/g,"銀行");
+  s=s.replace(/普(?=\s*\d)/g,"普通 ").replace(/当(?=\s*\d)/g,"当座 ");
+  return s.replace(/\s+/g," ").trim();
+}
+// 名前（正規化）または「電話番号＋ふりがな整合」で同一人物を探す
+function findPersonMatch(name, phone, kana){
+  const nk=nameKey(name);
+  let p=DB.people.find(x=>nameKey(x.name)===nk);
+  if(p) return p;
+  const pk=phoneKey(phone);
+  if(pk){
+    p=DB.people.find(x=>phoneKey(x.phone)===pk &&
+      (!kana || !x.kana || kanaKey(x.kana)===kanaKey(kana)));
+    if(p) return p;
+  }
+  return null;
+}
+function mergePersonInto(t, d){
+  t.years=Object.assign({}, d.years||{}, t.years||{});
+  t.memberNos=Object.assign({}, d.memberNos||{}, t.memberNos||{});
+  for(const f of ["kana","phone","bank","note","birthday","birthYear","email"]) if(!t[f]&&d[f]) t[f]=d[f];
+  t.bonus=Number(t.bonus)||Number(d.bonus)||0;
+  for(const a of DB.applications) if(a.personId===d.id) a.personId=t.id;
+}
+// 名簿全体の重複統合（名前ゆれ・電話一致）。統合した件数を返す
+function dedupePeople(){
+  const kept=[]; const byName=new Map(); const byPhone=new Map();
+  let removed=0;
+  for(const p of DB.people){
+    const nk=nameKey(p.name), pk=phoneKey(p.phone);
+    let target=byName.get(nk)||null;
+    if(!target && pk){
+      const t2=byPhone.get(pk);
+      if(t2 && (!p.kana||!t2.kana||kanaKey(p.kana)===kanaKey(t2.kana))) target=t2;
+    }
+    if(target){ mergePersonInto(target,p); removed++; }
+    else{ kept.push(p); byName.set(nk,p); if(pk&&!byPhone.has(pk)) byPhone.set(pk,p); }
+  }
+  DB.people=kept;
+  return removed;
+}
+// 誕生日：Excelシリアル値・1990/09/04・xxxx/06/15・6月15日 などに対応 → "MM-DD"
+function parseBirthday(v){
+  if(v==null||v==="") return null;
+  if(typeof v==="number" && v>10000){       // Excelシリアル値
+    const d=new Date(Date.UTC(1899,11,30)+v*86400000);
+    return {md:`${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`, year:d.getUTCFullYear()>1930&&d.getUTCFullYear()<2020?d.getUTCFullYear():null};
+  }
+  const m=String(v).match(/(\d{4}|[xXｘＸ]+)?[\/年\-\.]?\s*(\d{1,2})\s*[\/月\-\.]\s*(\d{1,2})/);
+  if(!m) return null;
+  const year=/^\d{4}$/.test(m[1]||"")?Number(m[1]):null;
+  return {md:`${String(m[2]).padStart(2,"0")}-${String(m[3]).padStart(2,"0")}`, year:(year&&year<2020)?year:null};
+}
+function bdayText(p){ if(!p.birthday) return ""; const [m,d]=p.birthday.split("-").map(Number); return `${m}/${d}`; }
+function renderImportMap(){
+  const {wb, sheet}=importCtx;
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{header:1,defval:""});
+  importCtx.rows=rows;
+  // 見出し行の自動検出（先頭10行から「名前/氏名」を含む行を探す）
+  let headerRow=0;
+  for(let i=0;i<Math.min(rows.length,10);i++){
+    if((rows[i]||[]).some(c=>/名前|氏名/.test(String(c)))){ headerRow=i; break; }
+  }
+  importCtx.headerRow=headerRow;
+  const head=rows[headerRow]||[];
+  const ncols=Math.max(...rows.slice(0,headerRow+3).map(r=>(r||[]).length), head.length);
+  const colOpts=(sel)=>`<option value="">（なし）</option>`+Array.from({length:ncols},(_,i)=>
+    `<option value="${i}" ${sel===i?"selected":""}>${colLetter(i)}列${head[i]?"："+esc(String(head[i]).slice(0,10)):""}</option>`).join("");
+  const guess=(kw)=>head.findIndex(h=>kw.some(k=>String(h).includes(k)));
+  const gName=guess(["名前","氏名","name"]), gKana=guess(["かな","カナ","ふりがな","フリガナ"]),
+        gPhone=guess(["電話","TEL","tel","携帯"]), gBank=guess(["口座","銀行","振込"]), gNote=guess(["備考","メモ"]),
+        gNo=guess(["会員番号","会員No","No.","番号"]), gBday=guess(["誕生日","生年月日","誕生"]),
+        gMail=guess(["メール","mail","Mail","アドレス"]);
+  // データプレビュー（見出しの次の2行）
+  const prev=rows.slice(headerRow+1, headerRow+3).map(r=>
+    `<tr>${Array.from({length:Math.min(ncols,8)},(_,i)=>`<td class="muted">${esc(String(r?.[i]??"").slice(0,12))}</td>`).join("")}</tr>`).join("");
+  document.getElementById("imp_map").innerHTML=`
+    <h3>列の割り当て</h3>
+    <p class="muted">見出し行を ${headerRow+1}行目 と判定しました。列はExcelと同じ A, B, C… で表示しています。</p>
+    <div class="row">
+      <div><label class="fld">シート</label><select id="imp_sheet" onchange="importCtx.sheet=this.value;renderImportMap()">
+        ${wb.SheetNames.map(n=>`<option ${n===sheet?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+      <div><label class="fld">お名前 *</label><select id="mc_name">${colOpts(gName)}</select></div>
+      <div><label class="fld">ふりがな</label><select id="mc_kana">${colOpts(gKana)}</select></div>
+      <div><label class="fld">会員No.</label><select id="mc_no">${colOpts(gNo)}</select></div>
+      <div><label class="fld">誕生日</label><select id="mc_bday">${colOpts(gBday)}</select></div>
+      <div><label class="fld">電話</label><select id="mc_phone">${colOpts(gPhone)}</select></div>
+      <div><label class="fld">振込先口座</label><select id="mc_bank">${colOpts(gBank)}</select></div>
+      <div><label class="fld">メール</label><select id="mc_mail">${colOpts(gMail)}</select></div>
+      <div><label class="fld">備考</label><select id="mc_note">${colOpts(gNote)}</select></div>
+    </div>
+    <div style="overflow-x:auto;margin-top:6px"><table class="list"><tr>${Array.from({length:Math.min(ncols,8)},(_,i)=>`<th>${colLetter(i)}${head[i]?"："+esc(String(head[i]).slice(0,8)):""}</th>`).join("")}</tr>${prev}</table></div>
+    <p class="muted" style="margin-top:6px">データ ${Math.max(rows.length-headerRow-1,0)}行（名前が空の行は読み飛ばします）。名前の「様」やふりがなの混入は自動で取り除きます。</p>`;
+  document.getElementById("imp_go").style.display="";
+}
+function importPeopleRows(rows, opt){
+  let added=0, merged=0;
+  for(let i=opt.start;i<rows.length;i++){
+    const r=rows[i]||[];
+    const name=cleanName(r[opt.cName]); if(!name) continue;
+    const phone=opt.cPhone>=0?String(r[opt.cPhone]??"").trim():"";
+    const kana=opt.cKana>=0?String(r[opt.cKana]??"").replace(/[　\s]+/g," ").trim():"";
+    let p=findPersonMatch(name, phone, kana);
+    if(!p){ p={id:uid(), name, type:opt.type, years:{}, bonus:0}; DB.people.push(p); added++; }
+    else { merged++; p.name=name; }   // 旧データの「様」付き・表記ゆれもきれいな表記に更新
+    if(kana) p.kana=kana;
+    if(phone) p.phone=phone;
+    if(opt.cBank>=0 && r[opt.cBank]) p.bank=normBank(r[opt.cBank]);
+    if(opt.cMail>=0 && r[opt.cMail] && /@/.test(String(r[opt.cMail]))) p.email=String(r[opt.cMail]).trim();
+    if(opt.cNote>=0 && r[opt.cNote]) p.note=String(r[opt.cNote]).trim();
+    if(opt.cNo>=0 && r[opt.cNo]!==""){ p.memberNos=p.memberNos||{}; p.memberNos[opt.year||"最新"]=String(r[opt.cNo]).trim(); }
+    if(opt.cBday>=0){
+      const b=parseBirthday(r[opt.cBday]);
+      if(b){ p.birthday=b.md; if(b.year) p.birthYear=b.year; }
+    }
+    if(opt.type==="member"){ p.years=p.years||{}; if(opt.year) p.years[opt.year]=true; if(p.type!=="guest"&&p.type!=="staff") p.type="member"; }
+    else p.type=opt.type;
+  }
+  const deduped=dedupePeople();   // 取り込み後に表記ゆれ・電話一致の重複を統合
+  return {added:added-deduped<0?0:added-deduped, merged:merged+ (deduped>0?deduped:0), deduped};
+}
+function runImport(){
+  const col=id=>{const v=document.getElementById(id).value; return v===""?-1:Number(v);}
+  const cName=col("mc_name"); if(cName<0){ alert("お名前の列を選んでください"); return; }
+  const res=importPeopleRows(importCtx.rows, {
+    start:(importCtx.headerRow??0)+1,
+    cName, cKana:col("mc_kana"), cPhone:col("mc_phone"), cBank:col("mc_bank"), cNote:col("mc_note"),
+    cNo:col("mc_no"), cBday:col("mc_bday"), cMail:col("mc_mail"),
+    type:document.getElementById("imp_type").value,
+    year:document.getElementById("imp_year").value
+  });
+  closeDialog(); rerender();
+  alert(`読み込み完了：新規 ${res.added}名、既存に統合 ${res.merged}名${res.deduped?`（表記ゆれ・電話一致の重複 ${res.deduped}件を自動統合）`:""}`);
+}
+</script>
+
+<script>
+/* ================= 公演管理 ================= */
+function allTheaters(){ return BUILTIN_THEATERS.concat(DB.customTheaters); }
+function theaterOf(show){ return allTheaters().find(t=>t.id===show.theaterId); }
+/* ---------- 席種と料金 ---------- */
+// 劇場ごとの席種リスト（公式の初期価格つき）。null = 全席一律（バウ・追加劇場）
+function theaterClasses(theater){
+  if(!theater) return null;
+  if(theater.id==="takarazuka") return [["SS",14000],["S+",10500],["S",8000],["A",5500],["B",3500]];
+  if(theater.id==="tokyo") return [["SS",14000],["S",11000],["A",5500],["B",3500]];
+  return null;
+}
+// 座席→席種の判定（公式座席表のクラス分けを実装）
+function classOfSeat(theater, fi, row, num){
+  fi=Number(fi); num=Number(num);
+  if(theater?.id==="takarazuka"){
+    const r=Number(row);
+    if(fi===0){
+      if(isNaN(r)) return "S";                    // 1階L/Rボックス（22〜29列脇）はS席
+      if(r>=1&&r<=7) return (num>=21&&num<=79)?"SS":"S+";
+      if(r>=8&&r<=21) return "S+";
+      return "S";                                  // 22〜31列
+    }else{
+      if(!isNaN(r)) return r<=7?"S":(r<=9?"A":"B");
+      const n=Number(String(row).replace(/[LR]/g,""));   // 2階ボックス：L1-7/R1-7=A、L10-16/R10-16=B
+      return n<=7?"A":"B";
+    }
+  }
+  if(theater?.id==="tokyo"){
+    const r=Number(row);
+    if(fi===0) return (r>=1&&r<=7&&num>=31&&num<=50)?"SS":"S";
+    return r<=6?"S":(r<=11?"A":"B");
+  }
+  return null; // 一律料金の劇場
+}
+// この公演の席種ごとの価格（旧データの ticketPrice 単一価格とも互換）
+function priceOf(show, cls){
+  if(show?.prices && cls!=null && show.prices[cls]!=null) return Number(show.prices[cls]);
+  return show?.ticketPrice!=null?Number(show.ticketPrice):null;
+}
+function priceSummary(show){
+  const th=theaterOf(show);
+  const classes=theaterClasses(th);
+  if(classes && show.prices) return classes.map(([c])=>`${c}${show.prices[c]!=null?Number(show.prices[c]).toLocaleString():"未設定"}`).join("／")+"円";
+  return show.ticketPrice?yen(show.ticketPrice):"未設定";
+}
+// 割当済み座席から席種内訳と合計金額を計算
+function seatCostOf(show, theater, seatKeys){
+  const byCls={};
+  for(const key of seatKeys){
+    const [fi,row,num]=key.split("|");
+    const cls=classOfSeat(theater,fi,row,num)??"全席";
+    byCls[cls]=(byCls[cls]||0)+1;
+  }
+  let total=0, known=true;
+  const parts=Object.entries(byCls).map(([cls,n])=>{
+    const pr=priceOf(show, cls==="全席"?null:cls);
+    if(pr==null){ known=false; return `${cls==="全席"?"":cls+"席"}×${n}`; }
+    total+=pr*n;
+    return `${cls==="全席"?"":cls+"席"}×${n}`;
+  });
+  return {text:parts.join("・"), total:known?total:null};
+}
+function perfLabel(perf){ return `${fmtDate(perf.date)} ${perf.time}`; }
+function perfShort(perf){ return `${fmtDateShort(perf.date)}${perf.time}`; }
+function findPerf(show,perfId){ return (show.performances||[]).find(p=>p.id===perfId); }
+function showOf(app){ return DB.shows.find(s=>s.id===app.showId); }
+
+function renderShows(){
+  const el=document.getElementById("showList");
+  if(!DB.shows.length){
+    el.innerHTML=`<div class="card muted">公演がまだありません。「＋ 公演を追加」から登録してください。</div>`; return;
+  }
+  el.innerHTML=DB.shows.map(show=>{
+    const th=theaterOf(show);
+    const perfs=(show.performances||[]).slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+    const appCount=perfId=>{
+      let n=0;
+      for(const a of DB.applications.filter(a=>a.showId===show.id))
+        for(const en of a.entries) if(en.perfId===perfId && !["ng","refund","refunded"].includes(en.status)) n+=Number(en.count)||0;
+      return n;
+    };
+    const okCount=perfId=>{
+      let n=0;
+      for(const a of DB.applications.filter(a=>a.showId===show.id))
+        for(const en of a.entries) if((en.perfId===perfId&&en.status==="ok")||(en.status==="transferred"&&en.transferTo===perfId)) n+=Number(en.count)||0;
+      return n;
+    };
+    const rows=perfs.map(p=>{
+      const dem=appCount(p.id), ok=okCount(p.id), cap=Number(p.capacity)||0;
+      if(p.blocked){
+        return `<tr style="background:#f6f4f5">
+          <td><b>${perfLabel(p)}</b>${p.note?` <span class="muted">${esc(p.note)}</span>`:""}</td>
+          <td colspan="3"><span class="tag blocked">🚫 取次不可</span> <span class="muted">${esc(p.blockedReason||"")}</span></td>
+          <td class="no-print" style="white-space:nowrap">
+            <button class="btn mini ghost" onclick="toggleBlocked('${show.id}','${p.id}')">解除</button>
+            <button class="btn mini danger" onclick="deletePerf('${show.id}','${p.id}')">削除</button></td>
+        </tr>`;
+      }
+      return `<tr>
+        <td><b>${perfLabel(p)}</b>${p.note?` <span class="muted">${esc(p.note)}</span>`:""}</td>
+        <td style="width:110px"><input type="number" value="${p.capacity??""}" placeholder="未定" min="0"
+             onchange="setCapacity('${show.id}','${p.id}',this.value)" style="width:90px"> 枚</td>
+        <td>申込 <b>${dem}</b>枚${cap?` ／ 付与${cap}枚 <span class="${dem>cap?'tag st-ng':'tag st-ok'}" style="margin-left:4px">${dem>cap?"超過+"+(dem-cap):"空き"+(cap-dem)}</span>`:""}
+            <div class="bar" style="max-width:180px"><i style="width:${cap?Math.min(dem/cap*100,100):0}%;background:${dem>cap?"var(--ng)":"var(--ok)"}"></i></div></td>
+        <td>確定 ${ok}枚</td>
+        <td class="no-print" style="white-space:nowrap">
+          <button class="btn mini ghost" title="取次不可にする" onclick="toggleBlocked('${show.id}','${p.id}')">🚫</button>
+          <button class="btn mini danger" onclick="deletePerf('${show.id}','${p.id}')">削除</button></td>
+      </tr>`;
+    }).join("");
+    return `<div class="card">
+      <div class="spread">
+        <h3 style="margin:0">🌸 ${esc(show.troupe||"")}　${esc(th?.name||"劇場未設定")}公演<br><span style="font-size:16px">${esc(show.title)}</span></h3>
+        <div class="flex no-print">
+          <button class="btn mini sub" onclick="openShowDialog('${show.id}')">✎ 公演設定</button>
+          <button class="btn mini ghost" onclick="openPerfAdder('${show.id}')">＋ 回を追加</button>
+          <button class="btn mini danger" onclick="deleteShow('${show.id}')">削除</button>
+        </div>
+      </div>
+      <p class="muted">チケット代 ${priceSummary(show)}　／　お渡し場所：${esc(show.pickupPlace||"未設定")}　／　受取時間：${(show.pickupWindows||[]).length?show.pickupWindows.map(w=>`${w.time}公演→${w.from}〜${w.to}`).join("・"):"未設定"}</p>
+      <div style="overflow-x:auto;margin-top:8px"><table class="list">
+        <tr><th>公演回</th><th>付与枚数</th><th>申込状況</th><th>取次確定</th><th class="no-print"></th></tr>${rows||`<tr><td colspan="5" class="muted">回が未登録です</td></tr>`}
+      </table></div>
+    </div>`;
+  }).join("");
+}
+function toggleBlocked(showId,perfId){
+  const p=findPerf(DB.shows.find(s=>s.id===showId),perfId);
+  if(p.blocked){
+    if(!confirm(`${perfLabel(p)} の取次不可を解除しますか？`)) return;
+    p.blocked=false; p.blockedReason="";
+  }else{
+    const reason=prompt(`${perfLabel(p)} を取次不可にします。理由（任意）：`,"");
+    if(reason===null) return;
+    p.blocked=true; p.blockedReason=reason.trim();
+  }
+  rerender();
+}
+function setCapacity(showId,perfId,v){
+  const p=findPerf(DB.shows.find(s=>s.id===showId),perfId);
+  p.capacity=v===""?null:Number(v);
+  save(); renderShows();
+}
+function deletePerf(showId,perfId){
+  const show=DB.shows.find(s=>s.id===showId);
+  const used=DB.applications.some(a=>a.entries.some(e=>e.perfId===perfId||e.transferTo===perfId));
+  if(used && !confirm("この回には申込があります。削除すると申込の該当行も削除されます。よろしいですか？")) return;
+  show.performances=show.performances.filter(p=>p.id!==perfId);
+  for(const a of DB.applications) a.entries=a.entries.filter(e=>e.perfId!==perfId);
+  rerender();
+}
+function deleteShow(id){
+  if(!confirm("この公演と、関連する申込データをすべて削除します。よろしいですか？")) return;
+  DB.shows=DB.shows.filter(s=>s.id!==id);
+  DB.applications=DB.applications.filter(a=>a.showId!==id);
+  rerender();
+}
+function openShowDialog(id){
+  const s=id?DB.shows.find(x=>x.id===id):null;
+  const wins=(s?.pickupWindows||[{time:"",from:"",to:""}]);
+  showDialog(s?"公演設定の編集":"公演を追加", `
+    <div class="row">
+      <div class="grow" style="flex:2"><label class="fld">公演タイトル *</label><input type="text" id="sf_title" value="${esc(s?.title||"")}" placeholder="例：Beautiful Sky"></div>
+      <div><label class="fld">組</label><input type="text" id="sf_troupe" value="${esc(s?.troupe||"花組")}" style="width:110px"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div><label class="fld">劇場</label><select id="sf_theater" onchange="renderPriceInputs('${id||""}')">
+        ${allTheaters().map(t=>`<option value="${t.id}" ${s?.theaterId===t.id?"selected":""}>${esc(t.name)}</option>`).join("")}
+      </select></div>
+      <div><label class="fld">会携帯</label><input type="text" id="sf_phone" value="${esc(s?.phone||"080-6262-7000")}" style="width:150px"></div>
+    </div>
+    <div id="sf_priceArea" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow"><label class="fld">チケットお渡し場所</label><input type="text" id="sf_place" value="${esc(s?.pickupPlace||"")}" placeholder="例：宝塚バウホール正面入口 左手付近"></div>
+    </div>
+    <h3>チケットお受け取り時間（公演開始時刻ごと）</h3>
+    <p class="muted">例：11:00公演 → 10:15〜10:40。ご案内文に「・11:00公演→10:15〜10:40」の形で差し込まれます。</p>
+    <div id="sf_wins">${wins.map(w=>pickupWinRow(w)).join("")}</div>
+    <button class="btn mini ghost" onclick="this.insertAdjacentHTML('beforebegin','');document.getElementById('sf_wins').insertAdjacentHTML('beforeend',pickupWinRow({}))">＋ 行を追加</button>
+    <div class="flex" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+      <button class="btn" onclick="saveShow('${id||""}')">保存</button>
+    </div>`, ()=>renderPriceInputs(id||""));
+}
+// 劇場に応じてチケット代の入力欄を出し分け（席種別 or 一律）
+function renderPriceInputs(showId){
+  const s=showId?DB.shows.find(x=>x.id===showId):null;
+  const th=allTheaters().find(t=>t.id===document.getElementById("sf_theater").value);
+  const classes=theaterClasses(th);
+  const area=document.getElementById("sf_priceArea");
+  if(classes){
+    area.innerHTML=`<label class="fld">チケット代（席種ごと・円）</label><div class="row">`+
+      classes.map(([cls,def])=>{
+        const cur=(s?.theaterId===th.id && s?.prices && s.prices[cls]!=null)?s.prices[cls]:def;
+        return `<div><label class="fld">${cls}席</label><input type="number" class="sf_clsPrice" data-cls="${cls}" value="${cur}" style="width:100px"></div>`;
+      }).join("")+
+      `</div><p class="muted">公式価格を初期値にしています。公演によって異なる場合は書き換えてください。</p>`;
+  }else{
+    area.innerHTML=`<div class="row"><div><label class="fld">チケット代（全席一律・円）</label><input type="number" id="sf_price" value="${s?.ticketPrice||""}" style="width:120px" placeholder="円"></div></div>`;
+  }
+}
+function pickupWinRow(w){
+  return `<div class="row pickup-win" style="margin-bottom:6px">
+    <div><label class="fld">開演時刻</label><input type="time" class="pw_time" value="${w.time||""}" style="width:110px"></div>
+    <div><label class="fld">受取開始</label><input type="time" class="pw_from" value="${w.from||""}" style="width:110px"></div>
+    <div><label class="fld">受取終了</label><input type="time" class="pw_to" value="${w.to||""}" style="width:110px"></div>
+    <div><button class="btn mini ghost" onclick="this.closest('.pickup-win').remove()">✕</button></div>
+  </div>`;
+}
+function saveShow(id){
+  const title=document.getElementById("sf_title").value.trim();
+  if(!title){ alert("公演タイトルを入力してください"); return; }
+  const wins=[...document.querySelectorAll("#dlg .pickup-win")].map(r=>({
+    time:r.querySelector(".pw_time").value, from:r.querySelector(".pw_from").value, to:r.querySelector(".pw_to").value
+  })).filter(w=>w.time&&w.from&&w.to);
+  const clsInputs=[...document.querySelectorAll("#dlg .sf_clsPrice")];
+  const prices=clsInputs.length?Object.fromEntries(clsInputs.map(i=>[i.dataset.cls, Number(i.value)||null])):null;
+  const obj={
+    title, troupe:document.getElementById("sf_troupe").value.trim(),
+    theaterId:document.getElementById("sf_theater").value,
+    prices,
+    ticketPrice:prices?null:(Number(document.getElementById("sf_price")?.value)||null),
+    phone:document.getElementById("sf_phone").value.trim(),
+    pickupPlace:document.getElementById("sf_place").value.trim(),
+    pickupWindows:wins
+  };
+  if(id) Object.assign(DB.shows.find(s=>s.id===id),obj);
+  else { obj.id=uid(); obj.performances=[]; DB.shows.push(obj); }
+  closeDialog(); rerender();
+  if(!id) openPerfAdder(DB.shows[DB.shows.length-1].id);
+}
+function openPerfAdder(showId){
+  const show=DB.shows.find(s=>s.id===showId);
+  showDialog(`回の追加 ─ ${esc(show.title)}`, `
+    <h3>公式の公演日程ページから取り込み（おすすめ）</h3>
+    <p class="muted">宝塚歌劇団の日程ページのURLを貼ると、全公演回を自動で読み取ります。貸切公演・★印（友の会優先）・三井住友カード共同開催の回は自動で「取次不可」になります。</p>
+    <div class="row">
+      <div class="grow"><label class="fld">日程ページURL</label><input type="text" id="pa_url" placeholder="https://kageki.hankyu.co.jp/revue/2026/○○○/schedule_○○.html"></div>
+      <div><button class="btn sub" id="pa_urlBtn" onclick="importScheduleUrl('${showId}')">読み取る</button></div>
+    </div>
+    <div id="pa_schedResult"></div>
+    <h3 style="margin-top:16px">1回ずつ追加</h3>
+    <div class="row">
+      <div><label class="fld">日付</label><input type="date" id="pa_date"></div>
+      <div><label class="fld">開演時刻</label><input type="time" id="pa_time" value="11:00"></div>
+      <div><button class="btn" onclick="addPerfOne('${showId}')">追加</button></div>
+    </div>
+    <h3 style="margin-top:16px">まとめて追加（期間指定）</h3>
+    <p class="muted">期間内の毎日に、指定した時刻の回を追加します（休演日はあとで回を削除してください）。</p>
+    <div class="row">
+      <div><label class="fld">開始日</label><input type="date" id="pa_from"></div>
+      <div><label class="fld">終了日</label><input type="date" id="pa_to"></div>
+      <div class="grow"><label class="fld">時刻（カンマ区切り）</label><input type="text" id="pa_times" placeholder="例：11:00, 15:30"></div>
+      <div><button class="btn sub" onclick="addPerfBulk('${showId}')">まとめて追加</button></div>
+    </div>
+    <div id="pa_list" style="margin-top:12px">${perfAdderList(show)}</div>
+    <div class="flex" style="margin-top:14px;justify-content:flex-end"><button class="btn" onclick="closeDialog();rerender()">完了</button></div>`);
+}
+function perfAdderList(show){
+  const perfs=(show.performances||[]).slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  return `<p class="muted">登録済み ${perfs.length}回：</p><div class="flex">${perfs.map(p=>`<span class="tag member">${perfShort(p)} <a style="cursor:pointer" onclick="removePerfInline('${show.id}','${p.id}')">✕</a></span>`).join("")||"なし"}</div>`;
+}
+function removePerfInline(showId,perfId){
+  const show=DB.shows.find(s=>s.id===showId);
+  show.performances=show.performances.filter(p=>p.id!==perfId);
+  for(const a of DB.applications) a.entries=a.entries.filter(e=>e.perfId!==perfId);
+  save();
+  document.getElementById("pa_list").innerHTML=perfAdderList(show);
+}
+function addPerfOne(showId){
+  const show=DB.shows.find(s=>s.id===showId);
+  const date=document.getElementById("pa_date").value, time=document.getElementById("pa_time").value;
+  if(!date||!time){ alert("日付と時刻を入れてください"); return; }
+  if(!show.performances.some(p=>p.date===date&&p.time===time))
+    show.performances.push({id:uid(), date, time, capacity:null, heldSeats:[], seatAssign:{}});
+  save();
+  document.getElementById("pa_list").innerHTML=perfAdderList(show);
+}
+function addPerfBulk(showId){
+  const show=DB.shows.find(s=>s.id===showId);
+  const from=document.getElementById("pa_from").value, to=document.getElementById("pa_to").value;
+  const times=document.getElementById("pa_times").value.split(/[,、\s]+/).map(t=>t.trim()).filter(t=>/^\d{1,2}:\d{2}$/.test(t));
+  if(!from||!to||!times.length){ alert("開始日・終了日・時刻を確認してください"); return; }
+  let d=new Date(from+"T00:00:00"); const end=new Date(to+"T00:00:00");
+  while(d<=end){
+    const iso=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    for(const t of times)
+      if(!show.performances.some(p=>p.date===iso&&p.time===t))
+        show.performances.push({id:uid(), date:iso, time:t, capacity:null, heldSeats:[], seatAssign:{}});
+    d.setDate(d.getDate()+1);
+  }
+  save();
+  document.getElementById("pa_list").innerHTML=perfAdderList(show);
+}
+
+/* ---------- 公演日程ページの読み取り ---------- */
+function parseSchedulePage(html){
+  // 開始年：「公演期間：2026年10月17日…」から。無ければURL・現在年で補完
+  const pm=html.match(/公演期間[：:]\s*(\d{4})年(\d{1,2})月/);
+  let year=pm?Number(pm[1]):new Date().getFullYear();
+  let lastMonth=pm?Number(pm[2]):null;
+  // 注釈（※1 …）を収集
+  const notes={};
+  for(const m of html.matchAll(/※(\d)[　\s]*([^<]{5,120})/g)) if(!notes[m[1]]) notes[m[1]]=m[2].trim();
+  const strip=s=>s.replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").replace(/●/g,"").trim();
+  const out=[]; let skipped=0;
+  for(const trm of html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)){
+    const tr=trm[1];
+    const dm=tr.match(/<th[^>]*>(\d{1,2})\/(\d{1,2})<\/th>/);
+    if(!dm) continue;
+    const month=Number(dm[1]), day=Number(dm[2]);
+    if(lastMonth!=null && month<lastMonth) year++;
+    lastMonth=month;
+    const date=`${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    for(const tdm of tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)){
+      const txt=strip(tdm[1]);
+      if(!txt||txt==="休演日") continue;
+      const tm=txt.match(/(\d{1,2}:\d{2})/);
+      if(!tm){ if(/貸切/.test(txt)) skipped++; continue; } // 時刻の無い貸切セル等
+      const time=tm[1].padStart(5,"0");
+      let blocked=false, reason="", note="";
+      if(/貸切/.test(txt)){ blocked=true; reason="貸切公演"; }
+      if(/★/.test(txt)){ blocked=true; reason=reason||"宝塚友の会優先公演（★）"; }
+      const nm=txt.match(/※(\d)/);
+      if(nm){
+        const nt=notes[nm[1]]||"";
+        if(/三井住友|友の会|貸切/.test(nt)){ blocked=true; reason=nt.slice(0,60); }
+        else note=(note?note+" ":"")+"※"+nm[1];
+      }
+      const nk=txt.match(/[（(]([^）)]*新人公演[^）)]*)[）)]/)||( /新人公演/.test(txt)?["","新人公演"]:null);
+      if(nk){ blocked=true; reason=reason||"新人公演"; note=(note?note+" ":"")+nk[1]; }
+      out.push({date, time, blocked, reason, note});
+    }
+  }
+  return {perfs:out, skipped};
+}
+async function importScheduleUrl(showId){
+  const url=document.getElementById("pa_url").value.trim();
+  const box=document.getElementById("pa_schedResult");
+  if(!url){ box.innerHTML=`<p class="notice warn">URLを入力してください</p>`; return; }
+  const btn=document.getElementById("pa_urlBtn"); btn.disabled=true; btn.textContent="取得中…";
+  let r;
+  try{ r=await api("fetch_page",{url}); }
+  catch(e){ box.innerHTML=`<p class="notice warn">接続できませんでした</p>`; btn.disabled=false; btn.textContent="読み取る"; return; }
+  btn.disabled=false; btn.textContent="読み取る";
+  if(r.status!==200||r.data?.kind!=="html"){ box.innerHTML=`<p class="notice warn">${esc(r.data?.error||"ページを取得できませんでした")}</p>`; return; }
+  const {perfs, skipped}=parseSchedulePage(r.data.text);
+  if(!perfs.length){ box.innerHTML=`<p class="notice warn">公演日程を読み取れませんでした。ページの形式が異なる可能性があります。下の「まとめて追加」をご利用ください。</p>`; return; }
+  window.__schedImport={showId, perfs};
+  const okCount=perfs.filter(p=>!p.blocked).length;
+  box.innerHTML=`<div class="notice info" style="margin-top:8px">
+    ${perfs.length}回を読み取りました（取次対象 ${okCount}回 ／ 取次不可 ${perfs.length-okCount}回${skipped?` ／ 時刻非公開の貸切等 ${skipped}件は除外`:""}）</div>
+    <div style="max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:8px 12px">
+    ${perfs.map((p,i)=>`<label style="display:flex;gap:8px;align-items:center;padding:2px 0;font-size:13px">
+      <input type="checkbox" class="chk sched-chk" data-i="${i}" checked>
+      <span style="min-width:130px">${fmtDate(p.date)} ${p.time}</span>
+      ${p.blocked?`<span class="tag blocked">🚫 取次不可</span><span class="muted">${esc(p.reason)}</span>`:""}
+      ${p.note?`<span class="muted">${esc(p.note)}</span>`:""}
+    </label>`).join("")}
+    </div>
+    <div class="flex" style="margin-top:8px">
+      <button class="btn" onclick="applyScheduleImport()">チェックした回を登録する</button>
+    </div>`;
+}
+function applyScheduleImport(){
+  const ctx=window.__schedImport; if(!ctx) return;
+  const show=DB.shows.find(s=>s.id===ctx.showId);
+  const checks=[...document.querySelectorAll("#dlg .sched-chk")];
+  let added=0;
+  for(const c of checks){
+    if(!c.checked) continue;
+    const p=ctx.perfs[Number(c.dataset.i)];
+    if(show.performances.some(x=>x.date===p.date&&x.time===p.time)) continue;
+    show.performances.push({id:uid(), date:p.date, time:p.time, capacity:null,
+      blocked:!!p.blocked, blockedReason:p.reason||"", note:p.note||"", heldSeats:[], seatAssign:{}});
+    added++;
+  }
+  save();
+  document.getElementById("pa_schedResult").innerHTML=`<p class="notice ok">${added}回を登録しました</p>`;
+  document.getElementById("pa_list").innerHTML=perfAdderList(show);
+}
+
+/* ================= 申込 ================= */
+function fillShowSelectors(){
+  for(const selId of ["appShowFilter","allocShowSel","seatShowSel","msgShowSel","refundShowSel"]){
+    const sel=document.getElementById(selId);
+    const cur=sel.value;
+    sel.innerHTML=(selId==="appShowFilter"?`<option value="">すべての公演</option>`:"")+
+      DB.shows.map(s=>`<option value="${s.id}">${esc(s.title)}</option>`).join("");
+    if([...sel.options].some(o=>o.value===cur)) sel.value=cur;
+  }
+}
+function appStatusSummary(a){
+  const show=showOf(a); if(!show) return "";
+  return a.entries.map(en=>{
+    const p=findPerf(show,en.perfId);
+    let extra="";
+    if(en.status==="transferred"&&en.transferTo){ const tp=findPerf(show,en.transferTo); extra=`→${tp?perfShort(tp):"?"}`; }
+    return `<span class="tag st-${en.status.startsWith("proposed")?(en.status==="proposed"?"proposed":"ng"):({pending:"pending",ok:"ok",ng:"ng",transfer:"transfer",transferred:"ok",refund:"refund",refunded:"done"}[en.status]||"pending")}"
+      title="${ST_LABEL[en.status]||en.status}">${p?perfShort(p):"?"}×${en.count} ${ST_LABEL[en.status]||""}${extra}</span>`;
+  }).join(" ");
+}
+function personName(a){
+  const p=DB.people.find(x=>x.id===a.personId);
+  return p?p.name:(a.name||"（不明）");
+}
+function personTag(a){
+  const p=DB.people.find(x=>x.id===a.personId);
+  if(!p) return `<span class="tag other">名簿外</span>`;
+  return `<span class="tag ${p.type}">${TYPE_LABEL[p.type]}</span>`;
+}
+function renderApps(){
+  fillShowSelectors();
+  const f=document.getElementById("appShowFilter").value;
+  let list=DB.applications.slice();
+  if(f) list=list.filter(a=>a.showId===f);
+  list.sort((a,b)=>(b.receivedAt||"").localeCompare(a.receivedAt||""));
+  const rows=list.map(a=>{
+    const show=showOf(a);
+    return `<tr>
+      <td><b>${esc(personName(a))}</b> ${personTag(a)}<br><span class="muted">${esc(a.phone||"")}</span></td>
+      <td class="muted">${esc(show?.title||"?")}</td>
+      <td>${appStatusSummary(a)}</td>
+      <td>${a.support?yen(a.support):"<span class='muted'>−</span>"}</td>
+      <td class="muted">${esc(a.receivedAt||"")}</td>
+      <td class="no-print" style="white-space:nowrap">
+        <button class="btn mini ghost" onclick="openAppDialog('${a.id}')">編集</button>
+        <button class="btn mini danger" onclick="deleteApp('${a.id}')">削除</button></td>
+    </tr>`;
+  }).join("");
+  document.getElementById("appsTable").innerHTML=
+    `<tr><th>お名前</th><th>公演</th><th>申込内容と状況</th><th>サポート代</th><th>受付日</th><th class="no-print"></th></tr>`+
+    (rows||`<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">申込がまだありません。「LINEテキスト貼り付け」か「フォームで入力」からどうぞ。</td></tr>`);
+}
+function deleteApp(id){
+  if(!confirm("この申込を削除しますか？")) return;
+  DB.applications=DB.applications.filter(a=>a.id!==id);
+  rerender();
+}
+
+/* ---------- LINEテキスト解析 ---------- */
+function openPasteDialog(){
+  if(!DB.shows.length){ alert("先に公演タブで公演と回を登録してください"); return; }
+  showDialog("LINE申込テキストの貼り付け", `
+    <div class="row">
+      <div><label class="fld">対象公演</label><select id="pp_show">${DB.shows.map(s=>`<option value="${s.id}">${esc(s.title)}</option>`).join("")}</select></div>
+    </div>
+    <label class="fld" style="margin-top:10px">LINEで届いた申込テキスト</label>
+    <textarea id="pp_text" rows="10" placeholder="例）&#10;山田花子&#10;090-1234-5678&#10;8月15日(土)11:00 2枚&#10;8月20日(木)15:30 1枚&#10;サポート代 5000円&#10;ゆうちょ銀行 〇〇支店 普通1234567 ヤマダハナコ"></textarea>
+    <div class="flex" style="margin-top:12px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+      <button class="btn" onclick="parsePaste()">解析してフォームへ</button>
+    </div>`);
+}
+function parsePaste(){
+  const showId=document.getElementById("pp_show").value;
+  const show=DB.shows.find(s=>s.id===showId);
+  const text=document.getElementById("pp_text").value;
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const parsed={showId, name:"", phone:"", support:"", bank:"", entries:[]};
+  const phoneRe=/(0\d{1,3})[-ー−‐]?(\d{2,4})[-ー−‐]?(\d{3,4})/;
+  const dateRe=/(\d{1,2})\s*月\s*(\d{1,2})\s*日/;
+  const bankKw=/(銀行|信用金庫|信金|ゆうちょ|農協|JA|支店|普通|当座|口座|記号|番号)/;
+  for(const line of lines){
+    // 名前
+    let m=line.match(/(?:代表者名?|お名前|氏名|名前)\s*[:：]?\s*(.+)/);
+    if(m && !parsed.name){ parsed.name=m[1].replace(/様$/,"").trim(); continue; }
+    // 電話
+    m=line.match(phoneRe);
+    if(m && !line.match(dateRe) && !bankKw.test(line) && !parsed.phone){
+      parsed.phone=m[0].replace(/[ー−‐]/g,"-");
+      if(line.replace(phoneRe,"").replace(/(電話|TEL|tel|携帯|番号)[:：]?/g,"").trim()==="") continue;
+    }
+    // サポート代
+    m=line.match(/サポート[^0-9]*([\d,，]+)\s*円?/);
+    if(m){ parsed.support=Number(m[1].replace(/[,，]/g,"")); continue; }
+    // 公演日時＋枚数
+    m=line.match(dateRe);
+    if(m){
+      const mo=Number(m[1]), da=Number(m[2]);
+      const tm=line.match(/(\d{1,2})\s*[:：時]\s*(\d{2})?/);
+      const cm=line.match(/(\d+)\s*枚/);
+      const count=cm?Number(cm[1]):1;
+      let time=tm?`${String(tm[1]).padStart(2,"0")}:${tm[2]||"00"}`:null;
+      // 公演回とマッチング
+      let perf=(show.performances||[]).find(p=>{
+        const d=new Date(p.date+"T00:00:00");
+        return d.getMonth()+1===mo && d.getDate()===da && (!time||p.time===time);
+      });
+      parsed.entries.push({month:mo, day:da, time, count, perfId:perf?perf.id:"", raw:line});
+      continue;
+    }
+    // 口座
+    if(bankKw.test(line)){ parsed.bank=(parsed.bank?parsed.bank+" ":"")+line; continue; }
+    // 名前（ラベルなし・最初の非該当行）
+    if(!parsed.name && !phoneRe.test(line) && line.length<=20 && !/枚|円|公演/.test(line)){
+      parsed.name=line.replace(/様$/,"").trim();
+    }
+  }
+  closeDialog();
+  openAppDialog(null, parsed);
+}
+
+/* ---------- Excel申込リストの読み込み ---------- */
+let appXlsCtx=null;
+const PERF_LABEL_RE=/(\d{1,2})\s*\/\s*(\d{1,2})[^\d]*?(\d{1,2})\s*:\s*(\d{2})/;
+const SUMMARY_ROW_RE=/^(お?申込み?枚数|チケット保有枚数|保有枚数|合計|総計|小計|集計|枚数|人数|残数?|日程|備考)/;
+function normImportPhone(v){
+  let d=String(v??"").replace(/\D/g,"");
+  if(!d) return "";
+  if(d.length===10 && /^[789]/.test(d)) d="0"+d;   // Excelで先頭の0が落ちた携帯番号を復元
+  if(d.length===11) return d.slice(0,3)+"-"+d.slice(3,7)+"-"+d.slice(7);
+  if(d.length===10) return d.slice(0,2)+"-"+d.slice(2,6)+"-"+d.slice(6);
+  return d;
+}
+function openExcelAppDialog(){
+  if(typeof XLSX==="undefined"){ alert("Excel読み込み用ライブラリが読み込めていません。インターネット接続を確認してページを再読み込みしてください。"); return; }
+  if(!DB.shows.length){ alert("先に公演タブで公演を登録してください"); return; }
+  appXlsCtx=null;
+  showDialog("Excel申込リストの読み込み", `
+    <p class="muted">「お名前」＋公演回ごとの枚数列（見出し例：[7/28(火)14:30]）の形式の申込表を読み込みます。携帯番号列があれば名簿との照合にも使います。</p>
+    <div class="row">
+      <div><label class="fld">対象公演</label><select id="ax_show" onchange="analyzeAppSheet()">${DB.shows.map(s=>`<option value="${s.id}">${esc(s.title)}</option>`).join("")}</select></div>
+      <div class="grow"><label class="fld">ファイル（.xlsx / .xlsm / .csv）</label><input type="file" id="ax_file" accept=".xlsx,.xlsm,.xls,.csv" onchange="loadAppExcel(this)"></div>
+    </div>
+    <div id="ax_body"></div>`);
+}
+function loadAppExcel(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:"array"});
+    // シート自動選択：公演回パターンの列が多く、電話列があるものを優先
+    let best=null;
+    for(const name of wb.SheetNames){
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:""});
+      for(let h=0;h<Math.min(rows.length,5);h++){
+        const head=rows[h]||[];
+        const perfCols=head.filter(c=>PERF_LABEL_RE.test(String(c))).length;
+        if(perfCols<2) continue;
+        const hasName=head.some(c=>/名前|氏名/.test(String(c)));
+        const hasPhone=head.some(c=>/携帯|電話/.test(String(c)));
+        const score=perfCols*2+(hasPhone?5:0)+(hasName?3:0);
+        if(!best||score>best.score) best={sheet:name, headerRow:h, score};
+        break;
+      }
+    }
+    if(!best){ document.getElementById("ax_body").innerHTML=`<p class="notice warn">公演回の列（[7/28(火)14:30] のような見出し）が見つかりませんでした。シートの形式をご確認ください。</p>`; return; }
+    appXlsCtx={wb, sheet:best.sheet, headerRow:best.headerRow};
+    analyzeAppSheet();
+  };
+  reader.readAsArrayBuffer(file);
+}
+function analyzeAppSheet(){
+  if(!appXlsCtx) return;
+  const {wb}=appXlsCtx;
+  const show=DB.shows.find(s=>s.id===document.getElementById("ax_show").value);
+  const sheet=appXlsCtx.sheet, headerRow=appXlsCtx.headerRow;
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{header:1,defval:""});
+  const head=rows[headerRow]||[];
+  const cName=(()=>{const i=head.findIndex(c=>/名前|氏名/.test(String(c))); return i<0?0:i;})();
+  const cPhone=head.findIndex(c=>/携帯|電話/.test(String(c)));
+  const cHenka=head.findIndex(c=>/振替/.test(String(c)));
+  const cBiko=head.findIndex(c=>/備考|その他.*記入|お伝えしたい/.test(String(c)));
+  // 公演回の列を解析して既存の回にマッチ
+  const perfCols=[];
+  head.forEach((c,i)=>{
+    const m=String(c).match(PERF_LABEL_RE);
+    if(!m) return;
+    const mo=Number(m[1]), da=Number(m[2]), time=`${String(m[3]).padStart(2,"0")}:${m[4]}`;
+    const perf=(show.performances||[]).find(p=>{
+      const d=new Date(p.date+"T00:00:00");
+      return d.getMonth()+1===mo && d.getDate()===da && p.time===time;
+    });
+    // 同じ日時の列が複数ある場合（一般と総見・FFなど）は最初の列だけを採用
+    const dup=perfCols.some(pc=>pc.mo===mo&&pc.da===da&&pc.time===time);
+    perfCols.push({col:i, label:String(c).trim(), mo, da, time, perfId:dup?null:(perf?perf.id:null), dup});
+  });
+  // データ行数と名簿マッチ状況
+  let n=0, matched=0;
+  for(let i=headerRow+1;i<rows.length;i++){
+    const name=cleanName(rows[i]?.[cName]); if(!name||SUMMARY_ROW_RE.test(name)) continue;
+    n++;
+    if(findPersonMatch(name, cPhone>=0?normImportPhone(rows[i][cPhone]):"", "")) matched++;
+  }
+  // 「チケット枚数」形式（回ラベル＋数値）のシートを探して付与枚数候補に
+  const caps=[];
+  for(const sn of wb.SheetNames){
+    const rs=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:""});
+    const found=[];
+    for(const r of rs){
+      for(let c=0;c<(r||[]).length-1;c++){
+        const m=String(r[c]).match(PERF_LABEL_RE);
+        if(m && r[c+1]!=="" && !isNaN(Number(r[c+1])) && Number(r[c+1])>0)
+          found.push({mo:Number(m[1]), da:Number(m[2]), time:`${String(m[3]).padStart(2,"0")}:${m[4]}`, cap:Number(r[c+1])});
+      }
+    }
+    if(found.length>=3){ caps.push(...found); break; }
+  }
+  appXlsCtx.parsed={rows, headerRow, cName, cPhone, cHenka, cBiko, perfCols, caps, showId:show.id};
+  const dupCols=perfCols.filter(pc=>pc.dup);
+  const unmatchedCols=perfCols.filter(pc=>!pc.perfId && !pc.dup);
+  document.getElementById("ax_body").innerHTML=`
+    <div class="notice info" style="margin-top:8px">
+      シート「${esc(sheet)}」：申込者 ${n}名（名簿と一致 ${matched}名／名簿外 ${n-matched}名は「その他」として名簿に追加されます）<br>
+      公演回の列 ${perfCols.length}件${unmatchedCols.length?`（うち未登録の回 ${unmatchedCols.length}件）`:""}${dupCols.length?`　⚠同じ日時の重複列 ${dupCols.length}件（総見・FF等）は取り込みません`:""}${caps.length?`　／　付与枚数データ ${caps.length}回ぶんを検出`:""}
+    </div>
+    ${wb.SheetNames.length>1?`<div class="row"><div><label class="fld">読み込むシート</label><select onchange="appXlsCtx.sheet=this.value;appXlsCtx.headerRow=0;analyzeAppSheet()">${wb.SheetNames.map(sn=>`<option ${sn===sheet?"selected":""}>${esc(sn)}</option>`).join("")}</select></div></div>`:""}
+    ${unmatchedCols.length?`<label style="font-size:13px;display:block;margin-top:6px"><input type="checkbox" class="chk" id="ax_autoPerf" checked> 未登録の回（${unmatchedCols.map(pc=>`${pc.mo}/${pc.da} ${pc.time}`).join("・")}）を公演に自動追加する</label>`:""}
+    ${caps.length?`<label style="font-size:13px;display:block;margin-top:6px"><input type="checkbox" class="chk" id="ax_caps" checked> 「チケット枚数」の付与枚数も各回に設定する</label>`:""}
+    <p class="muted" style="margin-top:6px">すでに登録済みの申込（同じ方・同じ公演）は枚数を更新し、新しい回の希望を追加します。確定済み（○/×）の行はそのまま残します。</p>
+    <div class="flex" style="margin-top:10px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+      <button class="btn" onclick="runAppImport()">この内容で読み込む</button>
+    </div>`;
+}
+function runAppImport(){
+  const ctx=appXlsCtx?.parsed; if(!ctx) return;
+  const show=DB.shows.find(s=>s.id===ctx.showId);
+  const autoPerf=document.getElementById("ax_autoPerf")?.checked;
+  // 未登録の回を自動追加
+  const yearGuess=(()=>{ // 公演の既存回から年を推定（無ければ今年）
+    const ys=(show.performances||[]).map(p=>Number(p.date.slice(0,4)));
+    return ys.length?ys.sort((a,b)=>ys.filter(v=>v===a).length-ys.filter(v=>v===b).length).pop():new Date().getFullYear();
+  })();
+  for(const pc of ctx.perfCols){
+    if(pc.dup) continue;              // 同日時の重複列（総見など）は回を作らない
+    if(pc.perfId) continue;
+    if(!autoPerf) continue;
+    const iso=`${yearGuess}-${String(pc.mo).padStart(2,"0")}-${String(pc.da).padStart(2,"0")}`;
+    const perf={id:uid(), date:iso, time:pc.time, capacity:null, heldSeats:[], seatAssign:{}};
+    show.performances.push(perf);
+    pc.perfId=perf.id;
+  }
+  // 付与枚数
+  if(document.getElementById("ax_caps")?.checked){
+    for(const cp of ctx.caps){
+      const perf=(show.performances||[]).find(p=>{
+        const d=new Date(p.date+"T00:00:00");
+        return d.getMonth()+1===cp.mo && d.getDate()===cp.da && p.time===cp.time;
+      });
+      if(perf) perf.capacity=cp.cap;
+    }
+  }
+  // 申込の取り込み
+  let newApps=0, updApps=0, skipped=0, newPeople=0;
+  const today=new Date();
+  const todayIso=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+  for(let i=ctx.headerRow+1;i<ctx.rows.length;i++){
+    const r=ctx.rows[i]||[];
+    const name=cleanName(r[ctx.cName]); if(!name||SUMMARY_ROW_RE.test(name)) continue;
+    const phone=ctx.cPhone>=0?normImportPhone(r[ctx.cPhone]):"";
+    const wants=ctx.perfCols.filter(pc=>pc.perfId && Number(r[pc.col])>0)
+      .map(pc=>({perfId:pc.perfId, count:Number(r[pc.col])}));
+    if(!wants.length){ skipped++; continue; }
+    let person=findPersonMatch(name, phone, "");
+    if(!person){ person={id:uid(), name, type:"other", years:{}, bonus:0, phone, note:"Excel申込から自動登録"}; DB.people.push(person); newPeople++; }
+    else if(phone && !person.phone) person.phone=phone;
+    // 振替可能日・備考の列があれば申込メモへ（振り分け画面のお名前の下に表示される）
+    let note="";
+    if(ctx.cHenka>=0 && r[ctx.cHenka]) note+="🔁振替可: "+String(r[ctx.cHenka]).replace(/\s+/g," ").trim().slice(0,120);
+    if(ctx.cBiko>=0 && r[ctx.cBiko]) note+=(note?" ／ ":"")+"📝"+String(r[ctx.cBiko]).replace(/\s+/g," ").trim().slice(0,150);
+    let a=DB.applications.find(x=>x.showId===show.id && x.personId===person.id);
+    if(!a){
+      a={id:uid(), showId:show.id, personId:person.id, name:person.name, phone:phone||person.phone||"",
+         support:0, bank:person.bank||"", note:note||"Excel取込", receivedAt:todayIso, entries:[]};
+      DB.applications.push(a); newApps++;
+    }else{ updApps++; if(note) a.note=note; }
+    for(const w of wants){
+      const en=a.entries.find(e=>e.perfId===w.perfId);
+      if(en){ if(["pending","proposed","proposedNg"].includes(en.status)) en.count=w.count; }
+      else a.entries.push({id:uid(), perfId:w.perfId, count:w.count, status:"pending", transferTo:null, refundAmount:null, refundDone:false, seats:[]});
+    }
+  }
+  closeDialog(); rerender();
+  alert(`Excel申込リストを読み込みました。\n新規申込 ${newApps}件／既存更新 ${updApps}件${skipped?`／枚数なしスキップ ${skipped}名`:""}${newPeople?`\n名簿外の方 ${newPeople}名を「その他」として名簿に追加しました`:""}`);
+}
+
+/* ---------- 申込フォーム ---------- */
+function entryRowHtml(show, en){
+  const perfs=(show?.performances||[]).slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  const unmatched=en&&!en.perfId&&en.raw?`<div class="muted" style="color:var(--ng)">⚠ 自動で回を特定できませんでした：「${esc(en.raw)}」</div>`:"";
+  return `<div class="row app-entry" style="margin-bottom:6px">
+    <div class="grow"><label class="fld">公演回</label><select class="ae_perf">
+      <option value="">選択してください</option>
+      ${perfs.map(p=>`<option value="${p.id}" ${en?.perfId===p.id?"selected":""}>${perfLabel(p)}${p.blocked?"　🚫取次不可":""}</option>`).join("")}
+    </select>${unmatched}</div>
+    <div><label class="fld">枚数</label><input type="number" class="ae_count" value="${en?.count||1}" min="1" style="width:80px"></div>
+    <div><button class="btn mini ghost" onclick="this.closest('.app-entry').remove()">✕</button></div>
+  </div>`;
+}
+function openAppDialog(id, parsed){
+  if(!DB.shows.length){ alert("先に公演タブで公演と回を登録してください"); return; }
+  const a=id?DB.applications.find(x=>x.id===id):null;
+  const showId=a?.showId||parsed?.showId||DB.shows[0].id;
+  const show=DB.shows.find(s=>s.id===showId);
+  const name=a?personName(a):(parsed?.name||"");
+  const entries=a?.entries||parsed?.entries||[{}];
+  showDialog(a?"申込の編集":"申込の登録", `
+    <div class="row">
+      <div><label class="fld">公演</label><select id="af_show" onchange="refreshAppEntries()">
+        ${DB.shows.map(s=>`<option value="${s.id}" ${s.id===showId?"selected":""}>${esc(s.title)}</option>`).join("")}
+      </select></div>
+      <div class="grow"><label class="fld">代表者名 *（名簿から自動照合）</label>
+        <input type="text" id="af_name" list="peopleDatalist" value="${esc(name)}" oninput="matchPersonHint()">
+        <datalist id="peopleDatalist">${DB.people.map(p=>`<option value="${esc(p.name)}">${TYPE_LABEL[p.type]}${p.kana?"・"+esc(p.kana):""}</option>`).join("")}</datalist>
+        <div id="af_personHint" class="muted"></div></div>
+      <div><label class="fld">電話番号</label><input type="tel" id="af_phone" value="${esc(a?.phone||parsed?.phone||"")}" style="width:150px"></div>
+    </div>
+    <h3>希望公演回と枚数</h3>
+    <div id="af_entries">${entries.map(en=>entryRowHtml(show,en)).join("")}</div>
+    <button class="btn mini ghost" onclick="addEntryRow()">＋ 回を追加</button>
+    <div class="row" style="margin-top:12px">
+      <div><label class="fld">サポート代（円）</label><input type="number" id="af_support" value="${a?.support||parsed?.support||""}" style="width:120px"></div>
+      <div><label class="fld">受付日</label><input type="date" id="af_received" value="${a?.receivedAt||new Date().toISOString().slice(0,10)}"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow"><label class="fld">返金時の口座情報</label><input type="text" id="af_bank" value="${esc(a?.bank||parsed?.bank||"")}"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow"><label class="fld">メモ</label><input type="text" id="af_note" value="${esc(a?.note||"")}"></div>
+    </div>
+    <div class="flex" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+      <button class="btn" onclick="saveApp('${id||""}')">保存</button>
+    </div>`, ()=>matchPersonHint());
+}
+function refreshAppEntries(){
+  const show=DB.shows.find(s=>s.id===document.getElementById("af_show").value);
+  document.getElementById("af_entries").innerHTML=entryRowHtml(show,{});
+}
+function addEntryRow(){
+  const show=DB.shows.find(s=>s.id===document.getElementById("af_show").value);
+  document.getElementById("af_entries").insertAdjacentHTML("beforeend", entryRowHtml(show,{}));
+}
+function matchPersonHint(){
+  const name=document.getElementById("af_name").value.trim();
+  const hint=document.getElementById("af_personHint");
+  const p=DB.people.find(x=>x.name===name);
+  if(!name){ hint.textContent=""; return; }
+  if(p) hint.innerHTML=`✓ 名簿と一致：<b>${TYPE_LABEL[p.type]}</b>${p.type==="member"?`・在籍${fcYears(p)}年`:""}`;
+  else hint.innerHTML=`<span style="color:var(--warn)">名簿に見つかりません → 保存時に「その他」として新規登録します</span>`;
+}
+function saveApp(id){
+  const name=document.getElementById("af_name").value.trim();
+  if(!name){ alert("代表者名を入力してください"); return; }
+  const showId=document.getElementById("af_show").value;
+  const entryEls=[...document.querySelectorAll("#dlg .app-entry")];
+  const newEntries=entryEls.map(r=>({
+    perfId:r.querySelector(".ae_perf").value,
+    count:Number(r.querySelector(".ae_count").value)||1
+  })).filter(e=>e.perfId);
+  if(!newEntries.length){ alert("公演回を1つ以上選んでください"); return; }
+  let person=DB.people.find(p=>p.name===name);
+  if(!person){
+    person={id:uid(), name, type:"other", years:{}, bonus:0, phone:document.getElementById("af_phone").value.trim(), note:"申込から自動登録"};
+    DB.people.push(person);
+  }
+  const a=id?DB.applications.find(x=>x.id===id):{id:uid(), entries:[]};
+  a.showId=showId; a.personId=person.id; a.name=name;
+  a.phone=document.getElementById("af_phone").value.trim();
+  a.support=Number(document.getElementById("af_support").value)||0;
+  a.bank=document.getElementById("af_bank").value.trim();
+  a.note=document.getElementById("af_note").value.trim();
+  a.receivedAt=document.getElementById("af_received").value;
+  // 既存エントリの状態は perfId が同じなら引き継ぐ
+  a.entries=newEntries.map(ne=>{
+    const old=(a.entries||[]).find(o=>o.perfId===ne.perfId);
+    return old?Object.assign(old,{count:ne.count}):{id:uid(), perfId:ne.perfId, count:ne.count, status:"pending", transferTo:null, refundAmount:null, refundDone:false, seats:[]};
+  });
+  if(!id) DB.applications.push(a);
+  if(person.bank===undefined||person.bank==="") person.bank=a.bank;
+  closeDialog(); rerender();
+}
+</script>
+
+<script>
+/* ================= 振り分け ================= */
+let allocSelPerf=null;              // 詳細表示中の回
+let allocChecked=new Set();         // 一括対象としてチェックした回
+const ST_SHORT={pending:"未", proposed:"案○", proposedNg:"案×", ok:"○", ng:"×", transfer:"振替中", transferred:"振替", refund:"返金", refunded:"返金済"};
+function allocShow(){ return DB.shows.find(s=>s.id===document.getElementById("allocShowSel").value); }
+function entriesOfPerf(show, perfId){
+  const out=[];
+  for(const a of DB.applications.filter(a=>a.showId===show.id))
+    for(const en of a.entries){
+      if(en.perfId===perfId && en.status!=="transferred") out.push({app:a, en});
+      if(en.status==="transferred" && en.transferTo===perfId) out.push({app:a, en, viaTransfer:true});
+    }
+  return out;
+}
+function confirmedCount(show, perfId){
+  return entriesOfPerf(show,perfId).filter(x=>x.en.status==="ok"||x.en.status==="transferred").reduce((s,x)=>s+Number(x.en.count),0);
+}
+function allocatedCount(show, perfId){ // 確定＋振替受入＋案○（残枠計算用）
+  return entriesOfPerf(show,perfId).filter(x=>["ok","transferred","proposed"].includes(x.en.status)).reduce((s,x)=>s+Number(x.en.count),0);
+}
+function demandCount(show, perfId){
+  return entriesOfPerf(show,perfId).filter(x=>!["ng","refund","refunded"].includes(x.en.status)).reduce((s,x)=>s+Number(x.en.count),0);
+}
+function personOkTotal(show, personId){
+  let n=0;
+  for(const a of DB.applications.filter(a=>a.showId===show.id && a.personId===personId))
+    for(const en of a.entries) if(en.status==="ok"||en.status==="transferred") n+=Number(en.count);
+  return n;
+}
+// この人の「取次済みの回」ラベル（対象回を除く）
+function otherConfirmedLabels(show, personId, excludePerfId){
+  const out=[];
+  for(const a of DB.applications.filter(a=>a.showId===show.id && a.personId===personId))
+    for(const en of a.entries){
+      let pid=null;
+      if(en.status==="ok") pid=en.perfId;
+      else if(en.status==="transferred") pid=en.transferTo;
+      if(pid && pid!==excludePerfId){
+        const p=findPerf(show,pid);
+        if(p) out.push({d:p.date+p.time, label:perfShort(p)+`×${en.count}`});
+      }
+    }
+  return out.sort((a,b)=>a.d.localeCompare(b.d)).map(x=>x.label);
+}
+// この人の「他の希望回」ラベル（状態つき・対象回と確定済みを除く）
+function otherRequestLabels(show, personId, excludePerfId){
+  const out=[];
+  for(const a of DB.applications.filter(a=>a.showId===show.id && a.personId===personId))
+    for(const en of a.entries){
+      if(en.perfId===excludePerfId) continue;
+      if(["ok","transferred","refund","refunded"].includes(en.status)) continue;
+      const p=findPerf(show,en.perfId);
+      if(p) out.push({d:p.date+p.time, label:`${perfShort(p)}(${ST_SHORT[en.status]||""})`});
+    }
+  return out.sort((a,b)=>a.d.localeCompare(b.d)).map(x=>x.label);
+}
+function toggleAllocCheck(perfId){
+  if(allocChecked.has(perfId)) allocChecked.delete(perfId); else allocChecked.add(perfId);
+  renderAlloc();
+}
+function selectAllAlloc(){
+  const show=allocShow(); if(!show) return;
+  for(const p of show.performances) if(!p.blocked) allocChecked.add(p.id);
+  renderAlloc();
+}
+function clearAllocSel(){ allocChecked.clear(); renderAlloc(); }
+
+function renderAlloc(){
+  fillShowSelectors();
+  const show=allocShow();
+  const el=document.getElementById("allocBody");
+  if(!show){ el.innerHTML=`<div class="card muted">公演を登録するとここに表示されます。</div>`; return; }
+  const perfs=(show.performances||[]).slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  if(allocSelPerf && !perfs.some(p=>p.id===allocSelPerf)) allocSelPerf=null;
+  for(const id of [...allocChecked]) if(!perfs.some(p=>p.id===id)) allocChecked.delete(id);
+  const hasCheckedProposals=perfs.some(p=>allocChecked.has(p.id) &&
+    entriesOfPerf(show,p.id).some(x=>["proposed","proposedNg"].includes(x.en.status)));
+  const toolbar=`<div class="flex no-print" style="margin-bottom:10px">
+    <button class="btn mini ghost" onclick="selectAllAlloc()">☑ 全回チェック</button>
+    <button class="btn mini ghost" onclick="clearAllocSel()">☐ チェック解除</button>
+    <span class="muted">${allocChecked.size?`${allocChecked.size}回をチェック中 ─ 「自動振り分け」はこの回だけを対象にします`:"チェックなし ─ 「自動振り分け」は全回対象"}</span>
+    ${hasCheckedProposals?`<button class="btn mini" onclick="confirmProposalsMulti()">✔ チェックした回の案を一括確定</button>`:""}
+  </div>`;
+  const cards=perfs.map(p=>{
+    const cap=Number(p.capacity)||0, dem=demandCount(show,p.id), ok=confirmedCount(show,p.id);
+    const alloc=allocatedCount(show,p.id);
+    const remaining=p.capacity!=null?cap-alloc:null;
+    const over=cap&&dem>cap;
+    const prem=premiereLabel(p,show);
+    const chk=p.blocked?"":`<input type="checkbox" class="chk" style="float:right" ${allocChecked.has(p.id)?"checked":""} onclick="event.stopPropagation();toggleAllocCheck('${p.id}')" title="一括対象にする">`;
+    const premTag=prem?`<span class="tag" style="background:#f5e6f0;color:#a4456e">🎀${prem}</span> `:"";
+    if(p.blocked) return `<div class="perf-card ${allocSelPerf===p.id?"sel":""}" style="opacity:.65" onclick="allocSelPerf='${p.id}';renderAlloc()">
+      <div class="d">${perfShort(p)}</div>
+      <div>${premTag}<span class="tag blocked">🚫 取次不可</span></div>
+      <div class="muted" style="font-size:11px">${esc(p.blockedReason||"")}${dem?`／申込${dem}枚あり`:""}</div>
+    </div>`;
+    return `<div class="perf-card ${allocSelPerf===p.id?"sel":""}" onclick="allocSelPerf='${p.id}';renderAlloc()">
+      ${chk}<div class="d">${perfShort(p)} ${premTag}</div>
+      <div class="muted">付与 ${p.capacity==null?"未定":cap+"枚"} ／ 申込 ${dem}枚 ／ 確定 ${ok}枚</div>
+      ${cap?`<div class="bar"><i style="width:${Math.min(dem/cap*100,100)}%;background:${over?"var(--ng)":"var(--ok)"}"></i></div>
+      <div style="margin-top:4px">${over?`<span class="tag st-ng">超過 +${dem-cap}</span>`:`<span class="tag st-ok">空き ${cap-dem}</span>`}
+      ${remaining>0?`<span class="tag st-transfer" title="確定・案○を除いた残り">残枠${remaining}</span>`:""}</div>`:""}
+    </div>`;
+  }).join("");
+  let detail="";
+  if(allocSelPerf){
+    const p=perfs.find(x=>x.id===allocSelPerf);
+    detail=allocDetailHtml(show,p);
+  } else {
+    detail=`<div class="notice info" style="margin-top:14px">回のカードをクリックすると、その回の申込者一覧と取次可否の操作が表示されます。カード右上のチェックは「一括振り分け・一括確定」の対象選択です。</div>`;
+  }
+  el.innerHTML=toolbar+`<div class="perf-grid">${cards||"<span class='muted'>回が未登録です</span>"}</div>${detail}`;
+}
+
+function allocDetailHtml(show,p){
+  const cap=Number(p.capacity)||0;
+  const list=entriesOfPerf(show,p.id).map(x=>{
+    const person=DB.people.find(pp=>pp.id===x.app.personId);
+    x.bb=bdayBonus(person,p);
+    x.pb=premiereBonus(person,p,show);
+    x.score=scoreOf(x.app.personId,x.app)+x.bb+x.pb;
+    return x;
+  }).sort((a,b)=>{
+    const rank={ok:0,transferred:0,proposed:1,transfer:2,pending:3,proposedNg:4,ng:5,refund:6,refunded:6};
+    return (rank[a.en.status]??3)-(rank[b.en.status]??3) || b.score-a.score;
+  });
+  const remaining=p.capacity!=null?cap-allocatedCount(show,p.id):null;
+  // 繰り上げ候補：×・案× の方（スコア順）
+  let promoteNotice="";
+  if(remaining>0){
+    const cands=list.filter(x=>["proposedNg","ng","pending"].includes(x.en.status) && !x.viaTransfer)
+      .map(x=>{
+        const fits=Number(x.en.count)<=remaining;
+        return `${esc(personName(x.app))}様(${x.en.count}枚${fits?"":`→1枚なら可`}・${x.score}点)`;
+      });
+    promoteNotice=`<div class="notice ok">💡 <b>残枠 ${remaining}枚</b>あります。${cands.length?`繰り上げ候補（優先順）：${cands.slice(0,6).join("、")}${cands.length>6?` ほか${cands.length-6}名`:""}`:"この回で×になっている方はいません。振替の受け入れ先としても使えます。"}</div>`;
+  }
+  const prem=premiereLabel(p,show);
+  const rows=list.map(({app,en,score,bb,pb,viaTransfer})=>{
+    const person=DB.people.find(x=>x.id===app.personId);
+    const okTotal=personOkTotal(show,app.personId);
+    const badge=bdayBadge(person,p);
+    const confirmedOthers=otherConfirmedLabels(show,app.personId,p.id);
+    const otherReqs=otherRequestLabels(show,app.personId,p.id);
+    let actions="";
+    if(viaTransfer){ actions=`<span class="muted">振替で受入</span>`; }
+    else{
+      const b=(label,fn,cls="ghost")=>`<button class="btn mini ${cls}" onclick="${fn}">${label}</button>`;
+      const idArg=`'${app.id}','${en.id}'`;
+      const oneBtn=(Number(en.count)>1 && ["pending","proposed","proposedNg","ng"].includes(en.status))
+        ? b("👤 1枚のみで○",`reduceToOne(${idArg})`,"gold") : "";
+      if(["pending","proposed","proposedNg"].includes(en.status))
+        actions=b("○ 確定",`setEntryStatus(${idArg},'ok')`,"sub")+b("× 不可",`setEntryStatus(${idArg},'ng')`,"danger")+oneBtn;
+      else if(en.status==="ok") actions=b("↩ 未処理に戻す",`setEntryStatus(${idArg},'pending')`);
+      else if(en.status==="ng") actions=b("🔁 振替案内",`openTransferDialog(${idArg})`,"sub")+b("💰 返金対象へ",`setEntryStatus(${idArg},'refund')`)+oneBtn+b("↩",`setEntryStatus(${idArg},'pending')`);
+      else if(en.status==="transfer") actions=b("✓ 振替確定",`openTransferDialog(${idArg})`,"sub")+b("↩ 取消",`setEntryStatus(${idArg},'ng')`);
+      else if(en.status==="refund"||en.status==="refunded") actions=`<span class="muted">返金タブで管理</span> `+b("↩",`setEntryStatus(${idArg},'ng')`);
+    }
+    const countEditable=!viaTransfer && !["transferred","refund","refunded"].includes(en.status);
+    const origNote=(en.origCount!=null&&Number(en.origCount)!==Number(en.count))?`<br><span class="muted" style="font-size:10.5px">申込${en.origCount}枚→</span>`:"";
+    const rowChk=viaTransfer?"":`<input type="checkbox" class="chk alloc-row-chk" data-app="${app.id}" data-en="${en.id}">`;
+    return `<tr>
+      <td class="no-print" style="text-align:center">${rowChk}</td>
+      <td><b>${esc(personName(app))}</b> ${personTag(app)} ${badge}${app.note?`<br><span class="muted">${esc(app.note)}</span>`:""}
+        ${confirmedOthers.length?`<br><span style="font-size:11px;color:var(--ok)">✅済: ${confirmedOthers.join("・")}</span>`:""}
+        ${otherReqs.length?`<br><span style="font-size:11px;color:var(--info)">📅他の希望: ${otherReqs.join("・")}</span>`:""}</td>
+      <td style="text-align:center">${countEditable
+        ?`${origNote}<input type="number" min="1" value="${en.count}" style="width:56px;text-align:center" onchange="setEntryCount('${app.id}','${en.id}',this.value)">枚`
+        :`${origNote}${en.count}枚`}</td>
+      <td style="text-align:center"><b>${score}</b>${bb?`<span style="color:#c2185b;font-size:11px">(🎂+${bb})</span>`:""}${pb?`<span style="color:#a4456e;font-size:11px">(🎀+${pb})</span>`:""}${person?`<br><span class="muted" style="font-size:10.5px">${person.type==="member"?"在籍"+fcYears(person)+"年":""}</span>`:""}</td>
+      <td style="text-align:center">${app.support?yen(app.support):"−"}</td>
+      <td style="text-align:center">${okTotal}枚</td>
+      <td><span class="tag st-${en.status==="proposed"?"proposed":en.status==="proposedNg"?"ng":({pending:"pending",ok:"ok",ng:"ng",transfer:"transfer",transferred:"ok",refund:"refund",refunded:"done"}[en.status]||"pending")}">${ST_LABEL[en.status]}</span></td>
+      <td class="no-print">${actions}</td>
+    </tr>`;
+  }).join("");
+  const hasProposal=list.some(x=>["proposed","proposedNg"].includes(x.en.status));
+  const blockedNotice=p.blocked?`<div class="notice warn">🚫 この回は取次不可です${p.blockedReason?`（${esc(p.blockedReason)}）`:""}。申込がある場合は「振替案内」または「返金対象へ」で対応してください。</div>`:"";
+  return `<div class="card" style="margin-top:14px">
+    ${blockedNotice}
+    <div class="spread">
+      <h3 style="margin:0">📋 ${perfLabel(p)} ${prem?`<span class="tag" style="background:#f5e6f0;color:#a4456e">🎀${prem}</span>`:""} の申込者（優先順）</h3>
+      <div class="flex no-print">
+        ${hasProposal?`<button class="btn" onclick="confirmProposals('${p.id}')">この回の案をすべて確定する</button>`:""}
+      </div>
+    </div>
+    <p class="muted">付与 ${p.capacity==null?"未定":cap+"枚"} ／ 確定済み ${confirmedCount(show,p.id)}枚${remaining!=null?` ／ 残枠 ${remaining}枚`:""}${prem?` ／ 🎀${prem}のため親類・お客様・スタッフに＋${DB.settings.weights.premiere||0}点`:""}</p>
+    ${promoteNotice}
+    <div class="flex no-print" style="margin:6px 0">
+      <label style="font-size:12px"><input type="checkbox" class="chk" onchange="document.querySelectorAll('.alloc-row-chk').forEach(c=>c.checked=this.checked)"> 全選択</label>
+      <span class="muted" style="font-size:12px">チェックした行を一括で：</span>
+      <button class="btn mini sub" onclick="bulkSetStatus('ok')">○ 確定</button>
+      <button class="btn mini danger" onclick="bulkSetStatus('ng')">× 不可</button>
+      <button class="btn mini ghost" onclick="bulkSetStatus('pending')">↩ 未処理に戻す</button>
+      <button class="btn mini ghost" onclick="bulkSetStatus('refund')">💰 返金対象へ</button>
+    </div>
+    <div style="overflow-x:auto"><table class="list">
+      <tr><th class="no-print" style="width:30px"></th><th>お名前</th><th>枚数</th><th>優先スコア</th><th>サポート代</th><th>この公演での確定計</th><th>状況</th><th class="no-print">操作</th></tr>
+      ${rows||`<tr><td colspan="8" class="muted" style="text-align:center;padding:18px">この回への申込はありません</td></tr>`}
+    </table></div>
+  </div>`;
+}
+function findEntry(appId,enId){
+  const app=DB.applications.find(a=>a.id===appId);
+  return {app, en:app.entries.find(e=>e.id===enId)};
+}
+function setEntryStatus(appId,enId,st){
+  const {en}=findEntry(appId,enId);
+  en.status=st;
+  if(st!=="transferred") en.transferTo=null;
+  rerender();
+}
+// チェックした行の一括ステータス変更
+function bulkSetStatus(st){
+  const chks=[...document.querySelectorAll(".alloc-row-chk:checked")];
+  if(!chks.length){ alert("行のチェックボックスで対象を選んでください"); return; }
+  const label={ok:"○確定", ng:"×不可", pending:"未処理に戻す", refund:"返金対象へ"}[st]||st;
+  if(!confirm(`チェックした ${chks.length}件を「${label}」にしますか？`)) return;
+  for(const c of chks){
+    const {en}=findEntry(c.dataset.app, c.dataset.en);
+    en.status=st;
+    if(st!=="transferred") en.transferTo=null;
+  }
+  rerender();
+}
+// 枚数の手動修正（元の申込枚数は origCount に保持）
+function setEntryCount(appId,enId,v){
+  const {en}=findEntry(appId,enId);
+  const n=Math.max(1, Math.floor(Number(v)||1));
+  if(n===Number(en.count)){ renderAlloc(); return; }
+  if(en.origCount==null) en.origCount=Number(en.count);
+  en.count=n;
+  if(Number(en.origCount)===n) en.origCount=null;   // 元に戻したら表示も戻す
+  rerender();
+}
+// 複数枚の申込を「ご本人1枚のみ」に減らして取次○にする
+function reduceToOne(appId,enId){
+  const {app,en}=findEntry(appId,enId);
+  if(!confirm(`${personName(app)}様の ${en.count}枚 の申込を「ご本人1枚のみ」に減らして取次○にしますか？`)) return;
+  if(en.origCount==null) en.origCount=Number(en.count);
+  en.count=1;
+  en.status="ok";
+  rerender();
+}
+function confirmProposals(perfId){
+  const show=allocShow();
+  for(const a of DB.applications.filter(a=>a.showId===show.id))
+    for(const en of a.entries){
+      if(en.perfId!==perfId) continue;
+      if(en.status==="proposed") en.status="ok";
+      else if(en.status==="proposedNg") en.status="ng";
+    }
+  rerender();
+}
+function confirmProposalsMulti(){
+  const show=allocShow();
+  if(!allocChecked.size) return;
+  let n=0;
+  for(const a of DB.applications.filter(a=>a.showId===show.id))
+    for(const en of a.entries){
+      if(!allocChecked.has(en.perfId)) continue;
+      if(en.status==="proposed"){ en.status="ok"; n++; }
+      else if(en.status==="proposedNg"){ en.status="ng"; n++; }
+    }
+  rerender();
+  alert(`チェックした${allocChecked.size}回の案 ${n}件を確定しました。`);
+}
+function runAutoAlloc(){
+  const show=allocShow();
+  if(!show){ alert("公演を選んでください"); return; }
+  const perfs=(show.performances||[]);
+  const target=allocChecked.size?new Set([...allocChecked]):null;   // チェックした回だけを対象に
+  if(!perfs.some(p=>p.capacity!=null && (!target||target.has(p.id)))){
+    alert(target?"チェックした回に付与枚数が入っていません。公演タブで入力してください。":"公演タブで各回の付与枚数を入力してから実行してください");
+    return;
+  }
+  // 残枠 = 付与枚数 −（手動確定済み・振替受入済みの枚数）
+  const cap={};
+  for(const p of perfs){
+    if(p.capacity==null || p.blocked) continue;
+    if(target && !target.has(p.id)) continue;
+    cap[p.id]=Number(p.capacity)||0;
+  }
+  for(const a of DB.applications.filter(a=>a.showId===show.id))
+    for(const en of a.entries){
+      if(en.status==="ok" && cap[en.perfId]!=null) cap[en.perfId]-=Number(en.count);
+      if(en.status==="transferred" && cap[en.transferTo]!=null) cap[en.transferTo]-=Number(en.count);
+    }
+  // 候補：未処理・案 の申込行（手動確定/不可/振替/返金系はさわらない）
+  const persons=new Map();
+  for(const a of DB.applications.filter(a=>a.showId===show.id)){
+    for(const en of a.entries){
+      if(!["pending","proposed","proposedNg"].includes(en.status)) continue;
+      if(target && !target.has(en.perfId)) continue;
+      const pf=findPerf(show,en.perfId);
+      if(pf?.blocked){ en.status="proposedNg"; continue; } // 取次不可回は自動で案:×
+      if(cap[en.perfId]==null) continue; // 枚数未定の回は対象外
+      if(!persons.has(a.personId)) persons.set(a.personId,{score:scoreOf(a.personId,a), okBase:personOkTotal(show,a.personId), list:[]});
+      persons.get(a.personId).list.push({app:a,en});
+    }
+  }
+  for(const v of persons.values())
+    v.list.sort((x,y)=>{
+      const px=findPerf(show,x.en.perfId), py=findPerf(show,y.en.perfId);
+      return ((px?.date||"")+(px?.time||"")).localeCompare((py?.date||"")+(py?.time||""));
+    });
+  const maxLen=Math.max(0,...[...persons.values()].map(v=>v.list.length+v.okBase));
+  for(let round=0; round<maxLen; round++){
+    // このラウンドで審査する（人, 申込行）を集め、誕生日・初日楽の加点込みスコア順に並べる
+    const pairs=[];
+    for(const [pid,v] of persons){
+      const idx=round - v.okBase;   // 確定済み回数ぶん後ろのラウンドから
+      if(idx<0 || idx>=v.list.length) continue;
+      const {en}=v.list[idx];
+      const perf=findPerf(show,en.perfId);
+      const person=DB.people.find(pp=>pp.id===pid);
+      pairs.push({en, eff:v.score + bdayBonus(person,perf) + premiereBonus(person,perf,show)});
+    }
+    pairs.sort((a,b)=>b.eff-a.eff);
+    for(const {en} of pairs){
+      const need=Number(en.count)||1;
+      if(cap[en.perfId]>=need){ en.status="proposed"; cap[en.perfId]-=need; }
+      else en.status="proposedNg";
+    }
+  }
+  save(); renderAlloc();
+  alert(`自動振り分けの案を作成しました${target?`（チェックした${target.size}回が対象）`:"（全回対象）"}。\n「案:○」「案:×」を確認して、必要なら調整のうえ確定してください。`);
+}
+/* ---------- 振替 ---------- */
+function openTransferDialog(appId,enId){
+  const {app,en}=findEntry(appId,enId);
+  const show=showOf(app);
+  const cands=(show.performances||[]).filter(q=>{
+    const c=Number(q.capacity)||0;
+    return q.id!==en.perfId && !q.blocked && c-demandCount(show,q.id)>=Number(en.count);
+  }).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  const orig=findPerf(show,en.perfId);
+  showDialog(`振替 ─ ${esc(personName(app))}様（${orig?perfShort(orig):""} ${en.count}枚）`, `
+    ${cands.length?`
+    <p class="muted">空きのある回：</p>
+    <div class="perf-grid">${cands.map(q=>`
+      <div class="perf-card"><div class="d">${perfShort(q)}</div>
+      <div class="muted">空き ${(Number(q.capacity)||0)-demandCount(show,q.id)}枚</div>
+      <div class="flex" style="margin-top:6px">
+        ${en.status!=="transfer"?`<button class="btn mini ghost" onclick="markTransferOffered('${appId}','${enId}')">案内中にする</button>`:""}
+        <button class="btn mini sub" onclick="doTransfer('${appId}','${enId}','${q.id}')">この回へ振替確定</button>
+      </div></div>`).join("")}</div>`
+    :`<p class="notice warn">現在、${en.count}枚ぶんの空きがある回はありません。</p>`}
+    <div class="flex" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeDialog()">閉じる</button>
+    </div>`);
+}
+function markTransferOffered(appId,enId){
+  const {en}=findEntry(appId,enId);
+  en.status="transfer";
+  closeDialog(); rerender();
+}
+function doTransfer(appId,enId,toPerfId){
+  const {app,en}=findEntry(appId,enId);
+  en.status="transferred"; en.transferTo=toPerfId;
+  closeDialog(); rerender();
+  const show=showOf(app), tp=findPerf(show,toPerfId);
+  alert(`${personName(app)}様を ${tp?perfLabel(tp):""} へ振替確定しました。ご案内文タブから確定連絡が作れます。`);
+}
+</script>
+
+<script>
+/* ================= 座席図（SVG生成） ================= */
+function seatKeyOf(fi,row,num){ return `${fi}|${row}|${num}`; }
+function seatLabelOf(theater,key){
+  const [fi,row,num]=key.split("|");
+  const fl=theater.floors[Number(fi)];
+  return `${theater.floors.length>1?fl.name+" ":""}${row}列${num}番`;
+}
+function buildSeatSVG(theater, floorIdx, state){
+  // state: {held:Set, assign:{key:enId}, names:{enId:表示名}, selectable:'held'|'assign'|null}
+  const fl=theater.floors[floorIdx];
+  if(!fl) return "<p class='muted'>座席データがありません</p>";
+  const SW=11, SH=10, RH=15, AISLE=10, ARC=0.16;
+  // 座席番号の歯抜け（21〜,41〜など帯で飛ぶ番号）を詰めた「表示列」に変換する
+  const numSet=new Set();
+  for(const r of fl.rows) for(const b of r.blocks) for(let n=b[0];n<=b[1];n++) numSet.add(n);
+  const sortedNums=[...numSet].sort((a,b)=>a-b);
+  const colOf={}, jumpOf={};
+  let jumps=0;
+  sortedNums.forEach((n,i)=>{
+    if(i>0 && n>sortedNums[i-1]+1) jumps++;   // 番号の飛び＝通路1本
+    colOf[n]=i; jumpOf[n]=jumps;
+  });
+  const totalAisles=jumps;
+  // xshift（ボックス席の横ずらし）も含めた列範囲
+  let minCol=Infinity, maxCol=-Infinity;
+  for(const r of fl.rows) for(const b of r.blocks){
+    const sh=r.xshift||0;
+    minCol=Math.min(minCol,colOf[b[0]]+sh); maxCol=Math.max(maxCol,colOf[b[1]]+sh);
+  }
+  const cols=maxCol-minCol+1;
+  const yRowCount=fl.rows.filter(r=>!r.sameY).length;
+  const W=cols*SW+(totalAisles+1)*AISLE+90, cx=W/2, hw=W/2;
+  const arcDepth=W*ARC*0.35;
+  const H=yRowCount*RH+arcDepth+70;
+  const zoom=state.zoom||1;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:${zoom*100}%;height:auto;display:block">`;
+  svg+=`<rect x="${W*0.25}" y="6" width="${W*0.5}" height="16" rx="8" fill="#e8dfe4"/><text x="${cx}" y="18" text-anchor="middle" font-size="9" fill="#7c2d52" font-weight="bold">ス テ ー ジ</text>`;
+  const y0=44;
+  let yIdx=-1;
+  fl.rows.forEach((r)=>{
+    if(!r.sameY) yIdx++;
+    const baseY=y0+Math.max(yIdx,0)*RH;
+    let rowMinX=Infinity, rowMaxX=-Infinity;
+    r.blocks.forEach((b,bi)=>{
+      for(let n=b[0];n<=b[1];n++){
+        // 通路オフセット：ブロック順と番号帯の飛びの大きい方を採用（列ごとのブロック欠けでもズレない）
+        const aisleN=r.xshift?0:Math.max(bi, jumpOf[n]||0);
+        const x=30+(colOf[n]+(r.xshift||0)-minCol)*SW+aisleN*AISLE;
+        const dy=arcDepth*Math.pow((x-cx)/hw,2);
+        const y=baseY+dy;
+        rowMinX=Math.min(rowMinX,x); rowMaxX=Math.max(rowMaxX,x+SW);
+        const key=seatKeyOf(floorIdx,r.row,n);
+        const held=state.held&&state.held.has(key);
+        const enId=state.assign&&state.assign[key];
+        const cls="seat"+(enId?" assigned":held?" held":"");
+        const seatCls=typeof classOfSeat==="function"?classOfSeat(theater,floorIdx,r.row,n):null;
+        const title=`${r.row}列${n}番${seatCls?`（${seatCls}席）`:""}`+(enId&&state.names[enId]?` ─ ${state.names[enId]}`:held?"（持ちチケット）":"");
+        svg+=`<g class="seatg" data-key="${key}"><rect class="${cls}" x="${x}" y="${y}" width="${SW-1.6}" height="${SH-1.5}" rx="2"><title>${esc(title)}</title></rect>`+
+             `<text class="seat-num${enId?" on":""}" x="${x+(SW-1.6)/2}" y="${y+SH-3.6}">${n}</text></g>`;
+      }
+    });
+    const dyL=arcDepth*Math.pow((rowMinX-14-cx)/hw,2), dyR=arcDepth*Math.pow((rowMaxX+14-cx)/hw,2);
+    // ボックス席（xshiftあり）は外側1か所だけにラベル表示
+    const sh=r.xshift||0;
+    if(sh<=0) svg+=`<text class="rowlab" x="${rowMinX-14}" y="${baseY+dyL+SH-2}">${r.row}</text>`;
+    if(sh>=0) svg+=`<text class="rowlab" x="${rowMaxX+14}" y="${baseY+dyR+SH-2}">${r.row}</text>`;
+  });
+  svg+=`</svg>`;
+  return svg;
+}
+
+/* ================= 配席タブ ================= */
+let seatMode="held", seatSelEntry=null, seatFloorIdx=0, seatZoom=1;
+function seatShow(){ return DB.shows.find(s=>s.id===document.getElementById("seatShowSel").value); }
+function seatPerf(){
+  const show=seatShow(); if(!show) return null;
+  return findPerf(show, document.getElementById("seatPerfSel").value);
+}
+function fillSeatPerfSel(){
+  const show=seatShow();
+  const sel=document.getElementById("seatPerfSel");
+  const cur=sel.value;
+  sel.innerHTML=(show?.performances||[]).slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))
+    .map(p=>`<option value="${p.id}">${perfLabel(p)}</option>`).join("");
+  if([...sel.options].some(o=>o.value===cur)) sel.value=cur;
+}
+function seatEntriesOf(show,perf){
+  // この回で観劇が確定している申込行
+  const out=[];
+  for(const a of DB.applications.filter(a=>a.showId===show.id))
+    for(const en of a.entries){
+      if((en.perfId===perf.id&&en.status==="ok")||(en.status==="transferred"&&en.transferTo===perf.id))
+        out.push({app:a,en,score:scoreOf(a.personId,a)});
+    }
+  return out.sort((x,y)=>y.score-x.score);
+}
+function renderSeatTab(){
+  fillShowSelectors(); fillSeatPerfSel();
+  const show=seatShow(), el=document.getElementById("seatBody");
+  if(!show){ el.innerHTML=`<div class="card muted">公演を登録するとここに表示されます。</div>`; return; }
+  const perf=seatPerf();
+  if(!perf){ el.innerHTML=`<div class="card muted">この公演にはまだ回がありません。</div>`; return; }
+  const theater=theaterOf(show);
+  if(!theater){ el.innerHTML=`<div class="card muted">劇場が未設定です。公演設定で劇場を選んでください。</div>`; return; }
+  perf.heldSeats=perf.heldSeats||[]; perf.seatAssign=perf.seatAssign||{};
+  if(seatFloorIdx>=theater.floors.length) seatFloorIdx=0;
+  const entries=seatEntriesOf(show,perf);
+  const names={};
+  for(const {app,en} of entries) names[en.id]=personName(app);
+  // 割当済み枚数
+  const assignedCount=enId=>Object.values(perf.seatAssign).filter(v=>v===enId).length;
+  const entryList=entries.map(({app,en})=>{
+    const need=Number(en.count), got=assignedCount(en.id);
+    const keys=Object.entries(perf.seatAssign).filter(([k,v])=>v===en.id).map(([k])=>k);
+    const seatsTxt=keys.map(k=>seatLabelOf(theater,k)).join("、");
+    const cost=keys.length?seatCostOf(show,theater,keys):null;
+    return `<div class="perf-card ${seatSelEntry===en.id?"sel":""}" onclick="seatSelEntry='${en.id}';seatMode='assign';renderSeatTab()">
+      <div class="d">${esc(personName(app))} <span class="muted">${need}枚</span></div>
+      <div class="${got>=need?"muted":""}" style="font-size:12px">${got>=need?"✓":""} 割当 ${got}/${need}枚</div>
+      ${seatsTxt?`<div class="muted" style="font-size:11.5px">${esc(seatsTxt)}</div>`:""}
+      ${cost?`<div style="font-size:11.5px;color:var(--accent-deep)">💴 ${esc(cost.text)}${cost.total!=null?` ＝ ${yen(cost.total)}`:""}</div>`:""}
+    </div>`;
+  }).join("");
+  const heldN=perf.heldSeats.length, assignedN=Object.keys(perf.seatAssign).length;
+  el.innerHTML=`
+  <div class="card">
+    <div class="spread">
+      <h3 style="margin:0">🎫 ${perfLabel(perf)} <span class="muted">${esc(theater.name)}</span></h3>
+      <div class="flex">
+        ${theater.floors.length>1?theater.floors.map((f,i)=>`<button class="btn mini ${i===seatFloorIdx?"":"ghost"}" onclick="seatFloorIdx=${i};renderSeatTab()">${esc(f.name)}</button>`).join(""):""}
+        <span class="muted" style="margin-left:8px">表示:</span>
+        ${[[1,"全体"],[1.6,"160%"],[2.4,"240%"]].map(([z,lab])=>`<button class="btn mini ${seatZoom===z?"":"ghost"}" onclick="seatZoom=${z};renderSeatTab()">${lab}</button>`).join("")}
+      </div>
+    </div>
+    <div class="flex no-print" style="margin:10px 0">
+      <button class="btn mini ${seatMode==="held"?"":"ghost"}" onclick="seatMode='held';seatSelEntry=null;renderSeatTab()">① 持ちチケットの席を入力</button>
+      <button class="btn mini ${seatMode==="assign"?"":"ghost"}" onclick="seatMode='assign';renderSeatTab()">② 観劇者に割り当て</button>
+      <span class="muted">持ちチケット ${heldN}枚${perf.capacity!=null?`（付与予定 ${perf.capacity}枚）`:""} ／ 割当済み ${assignedN}枚</span>
+    </div>
+    ${seatMode==="held"?`
+      <div class="notice info no-print">座席図をクリックすると「持ちチケット（黄色）」として登録/解除されます。まとめて入力する場合：
+        <span class="flex" style="display:inline-flex;margin-left:6px">
+        ${theater.floors.length>1?`<select id="bulkFloor" style="width:auto">${theater.floors.map((f,i)=>`<option value="${i}" ${i===seatFloorIdx?"selected":""}>${esc(f.name)}</option>`).join("")}</select>`:`<input type="hidden" id="bulkFloor" value="0">`}
+        <input type="text" id="bulkSeats" placeholder="例：5列41-44" style="width:150px">
+        <button class="btn mini sub" onclick="bulkHeld()">追加</button></span>
+      </div>`:`
+      <div class="notice info no-print">右の観劇者リストから割り当てたい方を選んで、黄色い持ちチケット席をクリックしてください。割当済みの席をもう一度クリックすると解除されます。
+      <button class="btn mini gold" style="margin-left:8px" onclick="autoAssignSeats()">✨ 優先順に自動で割り当て</button></div>`}
+    <div class="flex" style="align-items:flex-start">
+      <div class="seatmap-wrap grow" id="seatmapHost">${buildSeatSVG(theater,seatFloorIdx,{held:new Set(perf.heldSeats),assign:perf.seatAssign,names,selectable:seatMode,zoom:seatZoom})}</div>
+      <div style="width:250px;flex-shrink:0">
+        <p style="font-weight:700;margin-bottom:6px">この回の観劇者（優先順）</p>
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:560px;overflow-y:auto">${entryList||"<span class='muted'>確定者がまだいません。振り分けタブで確定してください。</span>"}</div>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:8px">
+      <span class="legend-dot" style="background:#fff"></span>通常席
+      <span class="legend-dot" style="background:#f7d774"></span>持ちチケット
+      <span class="legend-dot" style="background:#a4456e"></span>割当済み（座席にマウスを乗せるとお名前が出ます）
+    </p>
+  </div>`;
+  const host=document.getElementById("seatmapHost");
+  host.querySelectorAll(".seatg").forEach(g=>{
+    g.addEventListener("click",()=>onSeatClick(g.dataset.key));
+  });
+}
+function onSeatClick(key){
+  const perf=seatPerf(); if(!perf) return;
+  if(seatMode==="held"){
+    if(perf.seatAssign[key]){ alert("割当済みの席です。先に割り当てを解除してください。"); return; }
+    const i=perf.heldSeats.indexOf(key);
+    if(i>=0) perf.heldSeats.splice(i,1); else perf.heldSeats.push(key);
+  }else{
+    if(perf.seatAssign[key]){ delete perf.seatAssign[key]; }
+    else{
+      if(!perf.heldSeats.includes(key)){ alert("持ちチケットの席（黄色）にのみ割り当てできます。先に①で席を登録してください。"); return; }
+      if(!seatSelEntry){ alert("右のリストから観劇者を選んでください。"); return; }
+      const show=seatShow();
+      const en=seatEntriesOf(show,perf).find(x=>x.en.id===seatSelEntry);
+      if(en){
+        const got=Object.values(perf.seatAssign).filter(v=>v===seatSelEntry).length;
+        if(got>=Number(en.en.count) && !confirm(`${personName(en.app)}様の枚数（${en.en.count}枚）を超えます。割り当てますか？`)) return;
+      }
+      perf.seatAssign[key]=seatSelEntry;
+    }
+  }
+  save(); renderSeatTab();
+}
+function bulkHeld(){
+  const perf=seatPerf(); const show=seatShow(); const theater=theaterOf(show);
+  const fi=Number(document.getElementById("bulkFloor").value)||0;
+  const txt=document.getElementById("bulkSeats").value.trim();
+  const m=txt.match(/(\d+)\s*列\s*(\d+)(?:\s*[-〜～]\s*(\d+))?/);
+  if(!m){ alert("「5列41-44」のように入力してください"); return; }
+  const row=m[1], from=Number(m[2]), to=Number(m[3]||m[2]);
+  const fl=theater.floors[fi];
+  const r=fl.rows.find(x=>String(x.row)===row);
+  if(!r){ alert(`${fl.name}に${row}列が見つかりません`); return; }
+  let added=0;
+  for(let n=from;n<=to;n++){
+    if(!r.blocks.some(b=>n>=b[0]&&n<=b[1])) continue;
+    const key=seatKeyOf(fi,r.row,n);
+    if(!perf.heldSeats.includes(key)){ perf.heldSeats.push(key); added++; }
+  }
+  save(); renderSeatTab();
+  if(!added) alert("該当する座席がないか、すでに登録済みです");
+}
+function autoAssignSeats(){
+  const show=seatShow(), perf=seatPerf(), theater=theaterOf(show);
+  const entries=seatEntriesOf(show,perf);
+  // 空いている持ち席を 階→列→番号順に
+  const free=perf.heldSeats.filter(k=>!perf.seatAssign[k]).sort((a,b)=>{
+    const [fa,ra,na]=a.split("|"), [fb,rb,nb]=b.split("|");
+    return Number(fa)-Number(fb)||Number(ra)-Number(rb)||Number(na)-Number(nb);
+  });
+  let i=0;
+  for(const {en} of entries){
+    let got=Object.values(perf.seatAssign).filter(v=>v===en.id).length;
+    while(got<Number(en.count)&&i<free.length){ perf.seatAssign[free[i]]=en.id; i++; got++; }
+  }
+  save(); renderSeatTab();
+}
+
+/* ================= 劇場追加（座席図生成） ================= */
+function renderSettings(){
+  const w=DB.settings.weights;
+  for(const [k,id] of [["guest","w_guest"],["staff","w_staff"],["family","w_family"],["member","w_member"],["other","w_other"],["year","w_year"],["supportDiv","w_supportDiv"],["bday","w_bday"],["bdayRange","w_bdayRange"],["premiere","w_premiere"]])
+    document.getElementById(id).value=w[k];
+  document.getElementById("tmplEdit").value=DB.settings.template;
+  document.getElementById("theaterList").innerHTML=allTheaters().map(t=>{
+    const seats=t.floors.reduce((s,f)=>s+f.rows.reduce((s2,r)=>s2+r.blocks.reduce((s3,b)=>s3+(b[1]-b[0]+1),0),0),0);
+    const inUse=DB.shows.some(s=>s.theaterId===t.id);
+    return `<div class="flex" style="padding:6px 0;border-bottom:1px solid var(--line)">
+      <b>${esc(t.name)}</b><span class="muted">${t.floors.map(f=>f.name).join("・")} ／ ${seats}席</span>
+      ${t.builtin?`<span class="tag member">組み込み</span>`:`<span class="tag other">追加分</span>
+        <button class="btn mini ghost" onclick="openTheaterDialog('${t.id}')">編集</button>
+        ${inUse?"":`<button class="btn mini danger" onclick="deleteTheater('${t.id}')">削除</button>`}`}
+      <button class="btn mini ghost" onclick="previewTheater('${t.id}')">座席図を見る</button>
+    </div>`;
+  }).join("");
+}
+function saveWeights(){
+  const w=DB.settings.weights;
+  w.guest=Number(document.getElementById("w_guest").value)||0;
+  w.staff=Number(document.getElementById("w_staff").value)||0;
+  w.family=Number(document.getElementById("w_family").value)||0;
+  w.member=Number(document.getElementById("w_member").value)||0;
+  w.other=Number(document.getElementById("w_other").value)||0;
+  w.year=Number(document.getElementById("w_year").value)||0;
+  w.supportDiv=Number(document.getElementById("w_supportDiv").value)||1000;
+  w.bday=Number(document.getElementById("w_bday").value)||0;
+  w.bdayRange=Number(document.getElementById("w_bdayRange").value)||0;
+  w.premiere=Number(document.getElementById("w_premiere").value)||0;
+  save(); alert("保存しました");
+}
+function saveTemplate(){ DB.settings.template=document.getElementById("tmplEdit").value; save(); alert("保存しました"); }
+function resetTemplate(){ document.getElementById("tmplEdit").value=DEFAULT_TEMPLATE; }
+function previewTheater(id){
+  const t=allTheaters().find(x=>x.id===id);
+  showDialog(`座席図 ─ ${esc(t.name)}`,
+    t.floors.map((f,i)=>`<h3>${esc(f.name)}</h3><div class="seatmap-wrap">${buildSeatSVG(t,i,{held:new Set(),assign:{},names:{}})}</div>`).join(""));
+}
+function specFromTheater(t){
+  return t.floors.map(f=>`[${f.name}]\n`+f.rows.map(r=>`${r.row}: `+r.blocks.map(b=>b[0]===b[1]?`${b[0]}`:`${b[0]}-${b[1]}`).join(" / ")).join("\n")).join("\n")
+}
+function openTheaterDialog(id){
+  const t=id?DB.customTheaters.find(x=>x.id===id):null;
+  showDialog(t?"劇場の編集":"劇場を追加（座席図を生成）", `
+    <div class="row"><div class="grow"><label class="fld">劇場名 *</label><input type="text" id="tf_name" value="${esc(t?.name||"")}" placeholder="例：〇〇市民会館 大ホール"></div></div>
+    <h3>座席表PDFのURLから自動生成を試す</h3>
+    <p class="muted">劇場公式サイトの座席表PDFのURLを貼ってください。PDFに文字情報が入っていれば自動で下の座席表テキストを組み立てます。<br>
+    ※宝塚系のPDFのように座席番号が「画像・図形」のみのPDFは自動読み取りできません。その場合はこの画面のURLをClaudeに伝えていただければ、読み取って登録用テキストをお作りします。</p>
+    <div class="row">
+      <div class="grow"><label class="fld">座席表PDFのURL</label><input type="text" id="tf_pdfUrl" placeholder="https://……/seat.pdf"></div>
+      <div><button class="btn sub" id="tf_pdfBtn" onclick="importSeatPdf()">読み取る</button></div>
+    </div>
+    <div id="tf_pdfResult"></div>
+    <label class="fld" style="margin-top:10px">座席表テキスト *</label>
+    <p class="muted">階ごとに [階名]、次の行から「列番号: 開始-終了 / 開始-終了 …」（左のブロックから順に）。座席番号は列の左端から右端へ連続している前提です。</p>
+    <textarea id="tf_spec" rows="12" style="font-family:Consolas,monospace;font-size:12.5px" placeholder="[1階]&#10;1: 8-12 / 13-24 / 25-29&#10;2: 7-12 / 13-24 / 25-30&#10;3: 5-12 / 13-24 / 25-32">${esc(t?specFromTheater(t):"")}</textarea>
+    <div class="flex" style="margin-top:10px">
+      <button class="btn sub" onclick="previewTheaterSpec()">プレビュー</button>
+      <span class="muted" id="tf_count"></span>
+    </div>
+    <div id="tf_preview"></div>
+    <div class="flex" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+      <button class="btn" onclick="saveTheater('${id||""}')">保存</button>
+    </div>`);
+}
+/* ---------- 座席表PDF読み取り（テキスト入りPDFのみ対応） ---------- */
+async function loadPdfJs(){
+  if(window.pdfjsLib) return true;
+  try{
+    await new Promise((res,rej)=>{
+      const s=document.createElement("script");
+      s.src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
+      s.onload=res; s.onerror=rej; document.head.appendChild(s);
+    });
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+    return true;
+  }catch(e){ return false; }
+}
+async function importSeatPdf(){
+  const url=document.getElementById("tf_pdfUrl").value.trim();
+  const box=document.getElementById("tf_pdfResult");
+  if(!url){ box.innerHTML=`<p class="notice warn">URLを入力してください</p>`; return; }
+  const btn=document.getElementById("tf_pdfBtn"); btn.disabled=true; btn.textContent="取得中…";
+  try{
+    const r=await api("fetch_page",{url});
+    if(r.status!==200||r.data?.kind!=="pdf"){ box.innerHTML=`<p class="notice warn">${esc(r.data?.error||"PDFを取得できませんでした")}</p>`; return; }
+    if(!(await loadPdfJs())){ box.innerHTML=`<p class="notice warn">PDF解析ライブラリを読み込めませんでした（インターネット接続を確認してください）</p>`; return; }
+    btn.textContent="解析中…";
+    const bin=atob(r.data.base64);
+    const bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+    const spec=await seatSpecFromPdf(pdf);
+    if(!spec){
+      box.innerHTML=`<p class="notice warn">このPDFは座席番号が画像・図形として描かれているため、自動読み取りできませんでした。<br>
+      このPDFのURLをClaudeに伝えていただければ読み取って登録用テキストをお作りします。お手数ですが下の欄への手入力もご利用いただけます。</p>`;
+      return;
+    }
+    document.getElementById("tf_spec").value=spec;
+    previewTheaterSpec();
+    box.innerHTML=`<p class="notice ok">読み取りました。下のプレビューで座席の並びを必ず確認し、必要なら座席表テキストを修正してください。</p>`;
+  }catch(e){
+    box.innerHTML=`<p class="notice warn">読み取り中にエラーが発生しました：${esc(String(e.message||e))}</p>`;
+  }finally{
+    btn.disabled=false; btn.textContent="読み取る";
+  }
+}
+async function seatSpecFromPdf(pdf){
+  // 各ページの数字トークンを座標つきで収集 → y座標で行クラスタリング → 連番からブロック推定
+  const floors=[];
+  for(let pi=1; pi<=Math.min(pdf.numPages,4); pi++){
+    const page=await pdf.getPage(pi);
+    const tc=await page.getTextContent();
+    const toks=[];
+    for(const it of tc.items){
+      const s=(it.str||"").trim();
+      if(/^\d{1,3}$/.test(s)) toks.push({n:Number(s), x:it.transform[4], y:it.transform[5]});
+    }
+    if(toks.length<20) continue;
+    // 行クラスタリング（y降順＝上から）
+    toks.sort((a,b)=>b.y-a.y||a.x-b.x);
+    const rows=[]; let cur=null;
+    for(const t of toks){
+      if(!cur||Math.abs(cur.y-t.y)>4){ cur={y:t.y, items:[]}; rows.push(cur); }
+      cur.items.push(t);
+      cur.y=(cur.y*(cur.items.length-1)+t.y)/cur.items.length;
+    }
+    const specRows=[];
+    let rowNo=0;
+    for(const r of rows){
+      if(r.items.length<4) continue; // 見出しなどを除外
+      r.items.sort((a,b)=>a.x-b.x);
+      let seq=r.items.map(t=>t.n);
+      let label=null;
+      // 端のトークンが行ラベル（連番の流れに合わない値）なら除外
+      const asc=a=>a.every((v,i)=>i===0||v>a[i-1]);
+      if(seq.length>4&&!asc(seq)&&asc(seq.slice(1))){ label=seq[0]; seq=seq.slice(1); r.items=r.items.slice(1); }
+      if(seq.length>4&&!asc(seq)&&asc(seq.slice(0,-1))){ label=seq[seq.length-1]; seq=seq.slice(0,-1); r.items=r.items.slice(0,-1); }
+      if(!asc(seq)) continue; // 座席行と見なせない
+      rowNo++;
+      // ブロック分割：番号の飛び or x間隔が中央値の1.9倍超
+      const gaps=[]; for(let i=1;i<r.items.length;i++) gaps.push(r.items[i].x-r.items[i-1].x);
+      const med=gaps.slice().sort((a,b)=>a-b)[Math.floor(gaps.length/2)]||10;
+      const blocks=[]; let b=[seq[0],seq[0]];
+      for(let i=1;i<seq.length;i++){
+        const jump=seq[i]!==seq[i-1]+1 || (r.items[i].x-r.items[i-1].x)>med*1.9;
+        if(jump){ blocks.push(b); b=[seq[i],seq[i]]; } else b[1]=seq[i];
+      }
+      blocks.push(b);
+      specRows.push(`${label??rowNo}: `+blocks.map(x=>x[0]===x[1]?`${x[0]}`:`${x[0]}-${x[1]}`).join(" / "));
+    }
+    if(specRows.length>=3) floors.push({name:floors.length===0?"1階":`${floors.length+1}階`, rows:specRows});
+  }
+  if(!floors.length) return null;
+  return floors.map(f=>`[${f.name}]\n`+f.rows.join("\n")).join("\n");
+}
+
+function parseTheaterSpec(spec){
+  const floors=[]; let cur=null;
+  for(let line of spec.split(/\r?\n/)){
+    line=line.trim(); if(!line) continue;
+    const fm=line.match(/^[\[［](.+?)[\]］]$/);
+    if(fm){ cur={name:fm[1], rows:[]}; floors.push(cur); continue; }
+    const rm=line.match(/^(\S+?)\s*[:：]\s*(.+)$/);
+    if(!rm) throw `読み取れない行があります：「${line}」`;
+    if(!cur){ cur={name:"1階", rows:[]}; floors.push(cur); }
+    const blocks=rm[2].split(/[\/／]/).map(s=>{
+      const bm=s.trim().match(/^(\d+)(?:\s*[-−ー〜～]\s*(\d+))?$/);
+      if(!bm) throw `座席範囲が読み取れません：「${s.trim()}」（例：8-12）`;
+      const a=Number(bm[1]), b=Number(bm[2]||bm[1]);
+      if(b<a) throw `範囲の大小が逆です：「${s.trim()}」`;
+      return [a,b];
+    });
+    for(let i=1;i<blocks.length;i++) if(blocks[i][0]<=blocks[i-1][1]) throw `${rm[1]}列のブロックが重なっています`;
+    cur.rows.push({row:rm[1], blocks});
+  }
+  if(!floors.length||!floors.some(f=>f.rows.length)) throw "座席の行がありません";
+  return floors;
+}
+function previewTheaterSpec(){
+  try{
+    const floors=parseTheaterSpec(document.getElementById("tf_spec").value);
+    const t={name:"preview", floors};
+    const seats=floors.reduce((s,f)=>s+f.rows.reduce((s2,r)=>s2+r.blocks.reduce((s3,b)=>s3+(b[1]-b[0]+1),0),0),0);
+    document.getElementById("tf_count").textContent=`合計 ${seats}席`;
+    document.getElementById("tf_preview").innerHTML=floors.map((f,i)=>`<h3>${esc(f.name)}</h3><div class="seatmap-wrap">${buildSeatSVG(t,i,{held:new Set(),assign:{},names:{}})}</div>`).join("");
+  }catch(e){ alert(e); }
+}
+function saveTheater(id){
+  const name=document.getElementById("tf_name").value.trim();
+  if(!name){ alert("劇場名を入力してください"); return; }
+  try{
+    const floors=parseTheaterSpec(document.getElementById("tf_spec").value);
+    if(id) Object.assign(DB.customTheaters.find(x=>x.id===id),{name,floors});
+    else DB.customTheaters.push({id:uid(), name, floors, builtin:false});
+    closeDialog(); save(); renderSettings();
+  }catch(e){ alert(e); }
+}
+function deleteTheater(id){
+  if(!confirm("この劇場を削除しますか？")) return;
+  DB.customTheaters=DB.customTheaters.filter(t=>t.id!==id);
+  save(); renderSettings();
+}
+</script>
+
+<script>
+/* ================= ご案内文 ================= */
+function renderMsgTab(){
+  fillShowSelectors();
+  const show=DB.shows.find(s=>s.id===document.getElementById("msgShowSel").value);
+  const el=document.getElementById("msgBody");
+  if(!show){ el.innerHTML=`<div class="card muted">公演を登録するとここに表示されます。</div>`; return; }
+  // 確定のある申込者一覧
+  const apps=DB.applications.filter(a=>a.showId===show.id &&
+    a.entries.some(en=>en.status==="ok"||en.status==="transferred"));
+  const rows=apps.map(a=>{
+    const lines=confirmedLines(show,a).map(x=>`${perfShort(x.perf)}×${x.count}`).join("、");
+    return `<tr>
+      <td><b>${esc(personName(a))}</b> ${personTag(a)}</td>
+      <td class="muted">${lines}</td>
+      <td>${a.notified?`<span class="tag st-done">案内済み</span>`:`<span class="tag st-pending">未案内</span>`}</td>
+      <td class="no-print"><button class="btn mini sub" onclick="openMsgDialog('${a.id}')">📨 文面を作る</button></td>
+    </tr>`;
+  }).join("");
+  el.innerHTML=`<div class="card">
+    <p class="muted">お取次ぎが確定した方の一覧です。「文面を作る」→ コピーして LINE に貼り付けてください。</p>
+    <div style="overflow-x:auto;margin-top:8px"><table class="list">
+      <tr><th>お名前</th><th>確定内容</th><th>案内状況</th><th class="no-print"></th></tr>
+      ${rows||`<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">確定した方がまだいません。振り分けタブで確定するとここに表示されます。</td></tr>`}
+    </table></div></div>`;
+}
+function confirmedLines(show,a){
+  const out=[];
+  for(const en of a.entries){
+    if(en.status==="ok"){ const p=findPerf(show,en.perfId); if(p) out.push({perf:p,count:en.count}); }
+    else if(en.status==="transferred"&&en.transferTo){ const p=findPerf(show,en.transferTo); if(p) out.push({perf:p,count:en.count}); }
+  }
+  return out.sort((x,y)=>(x.perf.date+x.perf.time).localeCompare(y.perf.date+y.perf.time));
+}
+function zenNum(n){ return String(n); }
+function buildMessage(show,a){
+  const th=theaterOf(show);
+  const lines=confirmedLines(show,a).map(x=>
+    `　${fmtDate(x.perf.date).replace("(","（").replace(")","）")}${x.perf.time}公演\n　　${x.count}枚`).join("\n");
+  const wins=(show.pickupWindows||[]);
+  let winHead="";
+  if(wins.length){
+    const mins=t=>{const[a1,b1]=t.split(":").map(Number);return a1*60+b1;};
+    const offs=wins.map(w=>[mins(w.time)-mins(w.from), mins(w.time)-mins(w.to)]);
+    if(offs.every(o=>o[0]===offs[0][0]&&o[1]===offs[0][1]))
+      winHead=`☆開演${offs[0][0]}分前〜${offs[0][1]}分前☆\n\n`;
+  }
+  const winLines=winHead+wins.map(w=>`・${w.time}公演→${w.from}〜${w.to}`).join("\n");
+  const tmpl=DB.settings.template||DEFAULT_TEMPLATE;
+  return tmpl
+    .replace(/^（お名前）様|\{お名前\}様?/m, `${personName(a)}様`)
+    .replace(/\{お名前\}/g, personName(a))
+    .replace(/\{組\}/g, show.troupe||"")
+    .replace(/\{劇場\}/g, th?.name||"")
+    .replace(/\{公演タイトル\}/g, show.title)
+    .replace(/\{取次リスト\}/g, lines||"（確定分なし）")
+    .replace(/\{受取時間案内\}/g, winLines||"（受取時間を公演設定で入力してください）")
+    .replace(/\{受取場所\}/g, show.pickupPlace||"（お渡し場所を公演設定で入力してください）")
+    .replace(/\{会携帯\}/g, show.phone||"080-6262-7000");
+}
+function openMsgDialog(appId){
+  const a=DB.applications.find(x=>x.id===appId);
+  const show=showOf(a);
+  const text=buildMessage(show,a);
+  showDialog(`ご案内文 ─ ${esc(personName(a))}様`, `
+    <div class="copybox" id="msgText">${esc(text)}</div>
+    <div class="flex" style="margin-top:12px;justify-content:flex-end">
+      <label style="font-size:13px"><input type="checkbox" class="chk" id="msgNotified" ${a.notified?"checked":""} onchange="setNotified('${a.id}',this.checked)"> 案内済みにする</label>
+      <button class="btn" onclick="copyMsg()">📋 コピー</button>
+      <button class="btn ghost" onclick="closeDialog()">閉じる</button>
+    </div>`);
+}
+function setNotified(appId,v){
+  DB.applications.find(x=>x.id===appId).notified=v;
+  save(); renderMsgTab();
+}
+function copyMsg(){
+  const text=document.getElementById("msgText").innerText;
+  navigator.clipboard.writeText(text).then(()=>{
+    const chk=document.getElementById("msgNotified");
+    if(chk&&!chk.checked){ chk.checked=true; chk.dispatchEvent(new Event("change")); }
+    alert("コピーしました。LINEに貼り付けてお使いください🌸");
+  }).catch(()=>alert("コピーに失敗しました。文面を選択して手動でコピーしてください。"));
+}
+
+/* ================= 返金 ================= */
+function refundRows(show){
+  const out=[];
+  for(const a of DB.applications.filter(a=>a.showId===show.id))
+    for(const en of a.entries)
+      if(en.status==="refund"||en.status==="refunded") out.push({app:a,en});
+  return out;
+}
+function renderRefund(){
+  fillShowSelectors();
+  const show=DB.shows.find(s=>s.id===document.getElementById("refundShowSel").value);
+  const tbl=document.getElementById("refundTable");
+  if(!show){ tbl.innerHTML=`<tr><td class="muted">公演を登録するとここに表示されます。</td></tr>`; return; }
+  const list=refundRows(show);
+  const rows=list.map(({app,en})=>{
+    const p=findPerf(show,en.perfId);
+    let refBase="";
+    const th=theaterOf(show);
+    const classes=theaterClasses(th);
+    const assignedKeys=p?Object.entries(p.seatAssign||{}).filter(([k,v])=>v===en.id).map(([k])=>k):[];
+    if(assignedKeys.length){
+      const cost=seatCostOf(show,th,assignedKeys);
+      refBase=`チケット代 ${esc(cost.text)}${cost.total!=null?`＝${yen(cost.total)}`:""}`;
+    }else if(classes && show.prices){
+      refBase=`席種別単価 ${classes.map(([c])=>`${c}${show.prices[c]!=null?Number(show.prices[c]).toLocaleString():"?"}`).join("/")}円 ×${en.count}枚`;
+    }else if(show.ticketPrice){
+      refBase=`チケット代 ${yen(show.ticketPrice*en.count)}`;
+    }
+    const ref=refBase?`参考：${refBase}${app.support?` ＋ サポート代 ${yen(app.support)}`:""}`:"";
+    return `<tr>
+      <td><b>${esc(personName(app))}</b> ${personTag(app)}<br><span class="muted">${esc(app.phone||"")}</span></td>
+      <td>${p?perfLabel(p):"?"}<br><span class="muted">${en.count}枚</span></td>
+      <td><input type="number" value="${en.refundAmount??""}" placeholder="金額を入力" style="width:110px"
+        onchange="setRefundAmount('${app.id}','${en.id}',this.value)"> 円<br><span class="muted" style="font-size:11px">${ref}</span></td>
+      <td><input type="text" value="${esc(en.refundBank??app.bank??"")}" placeholder="口座情報"
+        onchange="setRefundBank('${app.id}','${en.id}',this.value)" style="min-width:210px"></td>
+      <td style="text-align:center"><label><input type="checkbox" class="chk" ${en.status==="refunded"?"checked":""}
+        onchange="setRefunded('${app.id}','${en.id}',this.checked)"> 済</label></td>
+    </tr>`;
+  }).join("");
+  const total=list.reduce((s,x)=>s+(Number(x.en.refundAmount)||0),0);
+  tbl.innerHTML=`<tr><th>お名前</th><th>対象公演回</th><th>返金額</th><th>返金先口座</th><th>返金済</th></tr>`+
+    (rows||`<tr><td colspan="5" class="muted" style="text-align:center;padding:20px">返金対象がありません。振り分けタブで「返金対象へ」を押すとここに載ります。</td></tr>`)+
+    (rows?`<tr><td colspan="2" style="text-align:right;font-weight:700">合計</td><td colspan="3" class="big">${yen(total)}</td></tr>`:"");
+}
+function setRefundAmount(appId,enId,v){ findEntry(appId,enId).en.refundAmount=v===""?null:Number(v); save(); renderRefund(); }
+function setRefundBank(appId,enId,v){ findEntry(appId,enId).en.refundBank=v; save(); }
+function setRefunded(appId,enId,v){ findEntry(appId,enId).en.status=v?"refunded":"refund"; save(); renderRefund(); }
+function exportRefundCSV(){
+  const show=DB.shows.find(s=>s.id===document.getElementById("refundShowSel").value);
+  if(!show) return;
+  const list=refundRows(show);
+  if(!list.length){ alert("返金対象がありません"); return; }
+  let csv="﻿お名前,電話番号,対象公演回,枚数,サポート代,返金額,返金先口座,状況\n";
+  for(const {app,en} of list){
+    const p=findPerf(show,en.perfId);
+    csv+=[personName(app),app.phone||"",p?perfLabel(p):"",en.count,app.support||0,en.refundAmount??"",
+      (en.refundBank??app.bank??"").replace(/,/g,"、"), en.status==="refunded"?"返金済":"未返金"].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")+"\n";
+  }
+  const blob=new Blob([csv],{type:"text/csv"});
+  const aEl=document.createElement("a");
+  aEl.href=URL.createObjectURL(blob);
+  aEl.download=`返金リスト_${show.title}_${new Date().toISOString().slice(0,10)}.csv`;
+  aEl.click();
+}
+
+/* ================= バックアップ ================= */
+function exportBackup(){
+  const blob=new Blob([JSON.stringify(DB,null,1)],{type:"application/json"});
+  const aEl=document.createElement("a");
+  aEl.href=URL.createObjectURL(blob);
+  aEl.download=`取次データバックアップ_${new Date().toISOString().slice(0,10)}.json`;
+  aEl.click();
+}
+function importBackup(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(!Array.isArray(d.people)||!Array.isArray(d.shows)) throw "形式が違います";
+      if(!confirm("現在のデータをバックアップの内容で置き換えます。よろしいですか？")) return;
+      DB=d; save(); location.reload();
+    }catch(err){ alert("読み込めませんでした："+err); }
+  };
+  reader.readAsText(file);
+  input.value="";
+}
+function wipeAll(){
+  if(!confirm("本当に全データを消去しますか？（バックアップを書き出してからをおすすめします）")) return;
+  if(!confirm("最終確認：名簿・公演・申込がすべて消えます。よろしいですか？")) return;
+  DB=defaults(); save(); location.reload();
+}
+
+/* ================= パスワード変更 ================= */
+async function changePassword(){
+  const oldPw=document.getElementById("pw_old").value;
+  const p1=document.getElementById("pw_new").value, p2=document.getElementById("pw_new2").value;
+  if(!oldPw||!p1){ alert("現在のパスワードと新しいパスワードを入力してください"); return; }
+  if(p1.length<8){ alert("新しいパスワードは8文字以上にしてください"); return; }
+  if(p1!==p2){ alert("新しいパスワード（確認）が一致しません"); return; }
+  let r;
+  try{ r=await api("change_password",{old:oldPw, new:p1}); }
+  catch(e){ alert("接続できませんでした"); return; }
+  if(r.status===200&&r.data?.ok){
+    PASSWORD=p1;
+    if(localStorage.getItem(PW_KEY)) localStorage.setItem(PW_KEY,p1);
+    document.getElementById("pw_old").value=document.getElementById("pw_new").value=document.getElementById("pw_new2").value="";
+    alert("パスワードを変更しました。運用担当の方にも新しいパスワードをお伝えください。");
+  }else{
+    alert(r.data?.error||"変更できませんでした。現在のパスワードをご確認ください。");
+  }
+}
+
+/* ================= 起動 ================= */
+(async()=>{
+  const saved=localStorage.getItem(PW_KEY);
+  if(saved){
+    const ok=await tryLogin(saved, true, true);
+    if(!ok){
+      localStorage.removeItem(PW_KEY);
+      document.getElementById("loginStatus").textContent="パスワードが変更されています。新しいパスワードでログインしてください。";
+    }
+  }
+})();
+</script>
+</body>
+</html>
+
