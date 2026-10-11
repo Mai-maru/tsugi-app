@@ -1076,10 +1076,16 @@ function renderShows(){
             <button class="btn mini danger" onclick="deletePerf('${show.id}','${p.id}')">削除</button></td>
         </tr>`;
       }
+      const hasClasses=!!theaterClasses(th);
+      const capCell=hasClasses
+        ? `<td style="width:150px"><b>${p.capacity??"未定"}</b>${p.capacity!=null?"枚":""}
+             ${p.classCaps?`<br><span class="muted" style="font-size:11px">${esc(Object.entries(p.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}</span>`:""}
+             <br><button class="btn mini ghost no-print" onclick="openCapDialog('${show.id}','${p.id}')">✎ 席種別に入力</button></td>`
+        : `<td style="width:110px"><input type="number" value="${p.capacity??""}" placeholder="未定" min="0"
+             onchange="setCapacity('${show.id}','${p.id}',this.value)" style="width:90px"> 枚</td>`;
       return `<tr>
         <td><b>${perfLabel(p)}</b>${p.note?` <span class="muted">${esc(p.note)}</span>`:""}</td>
-        <td style="width:110px"><input type="number" value="${p.capacity??""}" placeholder="未定" min="0"
-             onchange="setCapacity('${show.id}','${p.id}',this.value)" style="width:90px"> 枚</td>
+        ${capCell}
         <td>申込 <b>${dem}</b>枚${cap?` ／ 付与${cap}枚 <span class="${dem>cap?'tag st-ng':'tag st-ok'}" style="margin-left:4px">${dem>cap?"超過+"+(dem-cap):"空き"+(cap-dem)}</span>`:""}
             <div class="bar" style="max-width:180px"><i style="width:${cap?Math.min(dem/cap*100,100):0}%;background:${dem>cap?"var(--ng)":"var(--ok)"}"></i></div></td>
         <td>確定 ${ok}枚</td>
@@ -1120,6 +1126,51 @@ function setCapacity(showId,perfId,v){
   const p=findPerf(DB.shows.find(s=>s.id===showId),perfId);
   p.capacity=v===""?null:Number(v);
   save(); renderShows();
+}
+/* ---------- 付与枚数の席種別入力（公演途中のチケット追加にも対応） ---------- */
+function openCapDialog(showId,perfId){
+  const show=DB.shows.find(s=>s.id===showId);
+  const p=findPerf(show,perfId);
+  const classes=theaterClasses(theaterOf(show));
+  if(!classes){ alert("この劇場は一律料金のため、枚数欄に直接入力してください"); return; }
+  showDialog(`付与枚数（席種別） ─ ${perfLabel(p)}`, `
+    <p class="muted">劇団から割り当てられた枚数を席種ごとに入力してください。公演途中でチケットが追加されたときも、ここで該当の席種に加算すればOKです（合計・振り分け・席種割当の枠すべてに反映されます）。</p>
+    <div class="row">
+      ${classes.map(([cls])=>`<div><label class="fld">${cls}席</label>
+        <input type="number" class="capd-in" data-cls="${cls}" min="0" value="${p.classCaps?.[cls]??""}"
+          style="width:80px" oninput="capdTotal()"></div>`).join("")}
+      <div><label class="fld">合計</label><div id="capd-total" class="big" style="padding:6px 2px">${p.capacity??"—"}</div></div>
+    </div>
+    ${p.note?`<p class="muted">現在のメモ：${esc(p.note)}</p>`:""}
+    <div class="flex" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+      <button class="btn" onclick="saveCapDialog('${showId}','${perfId}')">保存</button>
+    </div>`);
+}
+function capdTotal(){
+  let t=0, any=false;
+  document.querySelectorAll("#dlg .capd-in").forEach(i=>{ const v=Number(i.value); if(i.value!==""&&v>=0){ t+=v; any=true; } });
+  document.getElementById("capd-total").textContent=any?t+"枚":"—";
+}
+function saveCapDialog(showId,perfId){
+  const show=DB.shows.find(s=>s.id===showId);
+  const p=findPerf(show,perfId);
+  const cc={}; let any=false;
+  document.querySelectorAll("#dlg .capd-in").forEach(i=>{
+    const v=Number(i.value);
+    if(i.value!==""&&v>0){ cc[i.dataset.cls]=v; any=true; }
+  });
+  if(any){
+    p.classCaps=cc;
+    p.capacity=Object.values(cc).reduce((s,n)=>s+n,0);
+    const breakdown=Object.entries(cc).map(([c,n])=>`${c}${n}`).join("・");
+    const base=(p.note||"").replace(/〔[^〕]*〕/g,"").trim();
+    p.note=(base?base+" ":"")+`〔${breakdown}〕`;
+  }else{
+    p.classCaps=null; p.capacity=null;
+    p.note=(p.note||"").replace(/〔[^〕]*〕/g,"").trim();
+  }
+  closeDialog(); rerender();
 }
 function deletePerf(showId,perfId){
   const show=DB.shows.find(s=>s.id===showId);
