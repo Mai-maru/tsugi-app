@@ -2240,12 +2240,12 @@ function runAutoAlloc(){
   while(alive.size){
     const cands=[]; const dead=[];
     for(const [pid,v] of alive){
-      let cand=null;
+      let cand=null, feas=0;
       for(const item of v.list){
         if(item.done) continue;
-        if(cap[item.en.perfId]>=(Number(item.en.count)||1)){ cand=item; break; }
+        if(cap[item.en.perfId]>=(Number(item.en.count)||1)){ if(!cand) cand=item; feas++; }
       }
-      if(cand) cands.push({pid,v,item:cand});
+      if(cand) cands.push({pid,v,item:cand,feas});
       else dead.push(pid);
     }
     for(const pid of dead){
@@ -2256,11 +2256,13 @@ function runAutoAlloc(){
     if(!cands.length) break;
     for(let i=cands.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [cands[i],cands[j]]=[cands[j],cands[i]]; }
     cands.sort((a,b)=>{
-      if(a.v.wins!==b.v.wins) return a.v.wins-b.v.wins;   // 当選が少ない人を最優先
+      if(a.v.wins!==b.v.wins) return a.v.wins-b.v.wins;   // ① 当選が少ない人を最優先
+      const sa=a.feas===1?0:1, sb=b.feas===1?0:1;          // ② 「その回しか残っていない人」を優先（単願の方など）
+      if(sa!==sb) return sa-sb;
       const pa=findPerf(show,a.item.en.perfId), pb=findPerf(show,b.item.en.perfId);
       const ea=a.v.score+bdayBonus(a.v.person,pa)+premiereBonus(a.v.person,pa,show);
       const eb=b.v.score+bdayBonus(b.v.person,pb)+premiereBonus(b.v.person,pb,show);
-      return eb-ea;
+      return eb-ea;                                        // ③ 優先スコア
     });
     const top=cands[0];
     cap[top.item.en.perfId]-=(Number(top.item.en.count)||1);
