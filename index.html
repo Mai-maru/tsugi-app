@@ -2816,17 +2816,22 @@ function renderMsgTab(){
     if(msgSort==="date") return ls.length?ls[0].perf.date+ls[0].perf.time:"9999";
     if(msgSort==="name"){ const p=DB.people.find(x=>x.id===a.personId); return (p?.kana||p?.name||a.name||""); }
     if(msgSort==="received") return a.receivedAt||"";
-    if(msgSort==="notified") return a.notified?"1":"0";
+    if(msgSort==="notified") return String(confirmedLines(show,a,true).length).padStart(3,"0");
     return "";
   };
   apps.sort((a,b)=>{ const ka=keyOf(a), kb=keyOf(b); return ka<kb?-msgDir:ka>kb?msgDir:0; });
   const arrow=k=>msgSort===k?(msgDir===1?" ▲":" ▼"):"";
   const rows=apps.map(a=>{
-    const lines=confirmedLines(show,a).map(x=>`${perfShort(x.perf)}×${x.count}${x.cls?`(${x.cls})`:""}`).join("、");
+    const all=confirmedLines(show,a);
+    const un=confirmedLines(show,a,true);
+    const lines=all.map(x=>`${x.en?.notified?"✓":"🔔"}${perfShort(x.perf)}×${x.count}${x.cls?`(${x.cls})`:""}`).join("、");
+    const st=un.length===0?`<span class="tag st-done">案内済み</span>`
+      :un.length===all.length?`<span class="tag st-pending">未案内</span>`
+      :`<span class="tag st-transfer">🔔 追加の未案内 ${un.length}件</span>`;
     return `<tr>
       <td><b>${esc(personName(a))}</b> ${personTag(a)}</td>
       <td class="muted">${lines}</td>
-      <td>${a.notified?`<span class="tag st-done">案内済み</span>`:`<span class="tag st-pending">未案内</span>`}</td>
+      <td>${st}</td>
       <td class="no-print"><button class="btn mini sub" onclick="openMsgDialog('${a.id}')">📨 文面を作る</button></td>
     </tr>`;
   }).join("");
@@ -2842,11 +2847,13 @@ function renderMsgTab(){
       ${rows||`<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">確定した方がまだいません。振り分けタブで確定するとここに表示されます。</td></tr>`}
     </table></div></div>`;
 }
-function confirmedLines(show,a){
+function confirmedLines(show,a,onlyNew){
+  // 対象は「確定○」「振替済」のみ（案○は絶対に含めない）。onlyNew=未案内の確定だけ
   const out=[];
   for(const en of a.entries){
-    if(en.status==="ok"){ const p=findPerf(show,en.perfId); if(p) out.push({perf:p,count:en.count,alloc:en.classAlloc||null}); }
-    else if(en.status==="transferred"&&en.transferTo){ const p=findPerf(show,en.transferTo); if(p) out.push({perf:p,count:en.count,alloc:en.classAlloc||null}); }
+    if(onlyNew && en.notified) continue;
+    if(en.status==="ok"){ const p=findPerf(show,en.perfId); if(p) out.push({perf:p,count:en.count,alloc:en.classAlloc||null,en}); }
+    else if(en.status==="transferred"&&en.transferTo){ const p=findPerf(show,en.transferTo); if(p) out.push({perf:p,count:en.count,alloc:en.classAlloc||null,en}); }
   }
   for(const x of out) x.cls=x.alloc?classAllocText({classAlloc:x.alloc}):"";
   return out.sort((x,y)=>(x.perf.date+x.perf.time).localeCompare(y.perf.date+y.perf.time));
@@ -2861,9 +2868,9 @@ function msgCountLine(x){
   }
   return `${x.count}枚`;
 }
-function buildMessage(show,a){
+function buildMessage(show,a,onlyNew){
   const th=theaterOf(show);
-  const lines=confirmedLines(show,a).map(x=>
+  const lines=confirmedLines(show,a,onlyNew).map(x=>
     `　${fmtDate(x.perf.date).replace("(","（").replace(")","）")}${x.perf.time}公演\n　　${msgCountLine(x)}`).join("\n");
   const wins=(show.pickupWindows||[]);
   let winHead="";
@@ -2886,28 +2893,46 @@ function buildMessage(show,a){
     .replace(/\{受取場所\}/g, show.pickupPlace||"（お渡し場所を公演設定で入力してください）")
     .replace(/\{会携帯\}/g, show.phone||"080-6262-7000");
 }
+let msgOnlyNew=true;
 function openMsgDialog(appId){
   const a=DB.applications.find(x=>x.id===appId);
   const show=showOf(a);
-  const text=buildMessage(show,a);
+  const all=confirmedLines(show,a);
+  const newOnes=confirmedLines(show,a,true);
+  // 一部だけ案内済みなら、既定は「未案内の確定だけ」を文面に載せる（週ごとの随時連絡用）
+  msgOnlyNew = newOnes.length>0 && newOnes.length<all.length;
+  renderMsgDialog(appId);
+}
+function renderMsgDialog(appId){
+  const a=DB.applications.find(x=>x.id===appId);
+  const show=showOf(a);
+  const all=confirmedLines(show,a);
+  const newOnes=confirmedLines(show,a,true);
+  const text=buildMessage(show,a,msgOnlyNew);
+  const toggle = all.length!==newOnes.length && newOnes.length>0
+    ? `<label style="font-size:13px"><input type="checkbox" class="chk" ${msgOnlyNew?"checked":""}
+        onchange="msgOnlyNew=this.checked;renderMsgDialog('${a.id}')"> 未案内の確定だけを文面に載せる（${newOnes.length}件／全${all.length}件）</label>`
+    : (newOnes.length===0?`<span class="muted">この方の確定はすべて案内済みです（下は全確定を載せた文面）</span>`:"");
   showDialog(`ご案内文 ─ ${esc(personName(a))}様`, `
-    <div class="copybox" id="msgText">${esc(text)}</div>
+    ${toggle?`<div style="margin-bottom:8px">${toggle}</div>`:""}
+    <div class="copybox" id="msgText">${esc(newOnes.length===0?buildMessage(show,a,false):text)}</div>
     <div class="flex" style="margin-top:12px;justify-content:flex-end">
-      <label style="font-size:13px"><input type="checkbox" class="chk" id="msgNotified" ${a.notified?"checked":""} onchange="setNotified('${a.id}',this.checked)"> 案内済みにする</label>
-      <button class="btn" onclick="copyMsg()">📋 コピー</button>
+      <button class="btn" onclick="copyMsg('${a.id}')">📋 コピー（文面に載せた確定を案内済みにする）</button>
       <button class="btn ghost" onclick="closeDialog()">閉じる</button>
     </div>`);
 }
-function setNotified(appId,v){
-  DB.applications.find(x=>x.id===appId).notified=v;
-  save(); renderMsgTab();
-}
-function copyMsg(){
+function copyMsg(appId){
+  const a=DB.applications.find(x=>x.id===appId);
+  const show=showOf(a);
   const text=document.getElementById("msgText").innerText;
   navigator.clipboard.writeText(text).then(()=>{
-    const chk=document.getElementById("msgNotified");
-    if(chk&&!chk.checked){ chk.checked=true; chk.dispatchEvent(new Event("change")); }
-    alert("コピーしました。LINEに貼り付けてお使いください🌸");
+    // 文面に載せた確定行を「案内済み」にする（確定1件ごとの管理）
+    const included=confirmedLines(show,a,msgOnlyNew && confirmedLines(show,a,true).length>0);
+    for(const x of included) if(x.en) x.en.notified=true;
+    a.notified=a.entries.filter(en=>["ok","transferred"].includes(en.status)).every(en=>en.notified);
+    save();
+    closeDialog(); renderMsgTab();
+    alert("コピーしました。LINEに貼り付けてお使いください🌸\n（文面に載せた確定は「案内済み」になりました）");
   }).catch(()=>alert("コピーに失敗しました。文面を選択して手動でコピーしてください。"));
 }
 
