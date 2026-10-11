@@ -2879,11 +2879,14 @@ function renderMsgTab(){
     const st=un.length===0?`<span class="tag st-done">案内済み</span>`
       :un.length===all.length?`<span class="tag st-pending">未案内</span>`
       :`<span class="tag st-transfer">🔔 追加の未案内 ${un.length}件</span>`;
+    const manual=un.length>0
+      ?`<button class="btn mini ghost" title="送信済みなのに未案内になっているとき用" onclick="markNotified('${a.id}',true)">✓案内済みに</button>`
+      :`<button class="btn mini ghost" title="誤って案内済みにしたとき用" onclick="markNotified('${a.id}',false)">↩未案内に戻す</button>`;
     return `<tr>
       <td><b>${esc(personName(a))}</b> ${personTag(a)}</td>
       <td class="muted">${lines}</td>
       <td>${st}</td>
-      <td class="no-print"><button class="btn mini sub" onclick="openMsgDialog('${a.id}')">📨 文面を作る</button></td>
+      <td class="no-print" style="white-space:nowrap"><button class="btn mini sub" onclick="openMsgDialog('${a.id}')">📨 文面を作る</button> ${manual}</td>
     </tr>`;
   }).join("");
   el.innerHTML=`<div class="card">
@@ -2967,24 +2970,41 @@ function renderMsgDialog(appId){
   showDialog(`ご案内文 ─ ${esc(personName(a))}様`, `
     ${toggle?`<div style="margin-bottom:8px">${toggle}</div>`:""}
     <div class="copybox" id="msgText">${esc(newOnes.length===0?buildMessage(show,a,false):text)}</div>
-    <div class="flex" style="margin-top:12px;justify-content:flex-end">
-      <button class="btn" onclick="copyMsg('${a.id}')">📋 コピー（文面に載せた確定を案内済みにする）</button>
-      <button class="btn ghost" onclick="closeDialog()">閉じる</button>
+    <div class="flex" style="margin-top:12px;justify-content:space-between">
+      <label style="font-size:13px"><input type="checkbox" class="chk" id="msgAutoNotify" checked>
+        コピーしたら案内済みにする<span class="muted">（確認だけのときはチェックを外す）</span></label>
+      <span class="flex">
+        <button class="btn" onclick="copyMsg('${a.id}')">📋 コピー</button>
+        <button class="btn ghost" onclick="closeDialog()">閉じる</button>
+      </span>
     </div>`);
 }
 function copyMsg(appId){
   const a=DB.applications.find(x=>x.id===appId);
   const show=showOf(a);
   const text=document.getElementById("msgText").innerText;
+  const auto=document.getElementById("msgAutoNotify")?.checked;
   navigator.clipboard.writeText(text).then(()=>{
-    // 文面に載せた確定行を「案内済み」にする（確定1件ごとの管理）
-    const included=confirmedLines(show,a,msgOnlyNew && confirmedLines(show,a,true).length>0);
-    for(const x of included) if(x.en) x.en.notified=true;
-    a.notified=a.entries.filter(en=>["ok","transferred"].includes(en.status)).every(en=>en.notified);
-    save();
-    closeDialog(); renderMsgTab();
-    alert("コピーしました。LINEに貼り付けてお使いください🌸\n（文面に載せた確定は「案内済み」になりました）");
+    if(auto){
+      // 文面に載せた確定行を「案内済み」にする（確定1件ごとの管理）
+      const included=confirmedLines(show,a,msgOnlyNew && confirmedLines(show,a,true).length>0);
+      for(const x of included) if(x.en) x.en.notified=true;
+      a.notified=a.entries.filter(en=>["ok","transferred"].includes(en.status)).every(en=>en.notified);
+      save();
+      closeDialog(); renderMsgTab();
+      alert("コピーしました。LINEに貼り付けてお使いください🌸\n（文面に載せた確定は「案内済み」になりました）");
+    }else{
+      alert("コピーしました（案内済みにはしていません。送信したら一覧の「✓案内済みに」を押してください）");
+    }
   }).catch(()=>alert("コピーに失敗しました。文面を選択して手動でコピーしてください。"));
+}
+// 一覧からの手動切り替え（確定ぜんぶを案内済みに／未案内に戻す）
+function markNotified(appId, flag){
+  const a=DB.applications.find(x=>x.id===appId);
+  for(const en of a.entries)
+    if(en.status==="ok"||en.status==="transferred") en.notified=flag;
+  a.notified=flag;
+  save(); renderMsgTab();
 }
 
 /* ================= 返金 ================= */
