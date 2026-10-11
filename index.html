@@ -1781,6 +1781,19 @@ function allocatedCount(show, perfId){ // 確定＋振替受入＋案○（残�
 function demandCount(show, perfId){
   return entriesOfPerf(show,perfId).filter(x=>!["ng","refund","refunded"].includes(x.en.status)).reduce((s,x)=>s+Number(x.en.count),0);
 }
+// 公演をまたいだ「当選回数」（確定・振替済は全公演、案○は他公演ぶんのみ数える）
+// 例：本公演で1回当選している人は、会総見の振り分けで「すでに1勝」として後回しになる
+function globalWinCount(personId, currentShow){
+  let n=0;
+  for(const a of DB.applications.filter(a=>a.personId===personId)){
+    const same=a.showId===currentShow.id;
+    for(const en of a.entries){
+      if(en.status==="ok"||en.status==="transferred") n++;
+      else if(!same && en.status==="proposed") n++;
+    }
+  }
+  return n;
+}
 function personOkTotal(show, personId){
   let n=0;
   for(const a of DB.applications.filter(a=>a.showId===show.id && a.personId===personId))
@@ -2218,7 +2231,7 @@ function runAutoAlloc(){
       const key=a.personId+"|"+en.perfId;
       if(seenPersonPerf.has(key)){ en.status="proposedNg"; continue; } // 重複行は2つ目以降を案:×
       seenPersonPerf.add(key);
-      if(!persons.has(a.personId)) persons.set(a.personId,{score:scoreOf(a.personId,a), okBase:personOkTotal(show,a.personId), list:[]});
+      if(!persons.has(a.personId)) persons.set(a.personId,{score:scoreOf(a.personId,a), okBase:globalWinCount(a.personId,show), list:[]});
       persons.get(a.personId).list.push({app:a,en});
     }
   }
