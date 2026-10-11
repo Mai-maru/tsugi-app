@@ -2227,27 +2227,49 @@ function runAutoAlloc(){
       const px=findPerf(show,x.en.perfId), py=findPerf(show,y.en.perfId);
       return ((px?.date||"")+(px?.time||"")).localeCompare((py?.date||"")+(py?.time||""));
     });
-  const maxLen=Math.max(0,...[...persons.values()].map(v=>v.list.length+v.okBase));
-  for(let round=0; round<maxLen; round++){
-    // このラウンドで審査する（人, 申込行）を集め、誕生日・初日楽の加点込みスコア順に並べる
-    const pairs=[];
-    for(const [pid,v] of persons){
-      const idx=round - v.okBase;   // 確定済み回数ぶん後ろのラウンドから
-      if(idx<0 || idx>=v.list.length) continue;
-      const {en}=v.list[idx];
-      const perf=findPerf(show,en.perfId);
-      const person=DB.people.find(pp=>pp.id===pid);
-      pairs.push({en, eff:v.score + bdayBonus(person,perf) + premiereBonus(person,perf,show)});
+  // 「当選数が最少の人」から順に、まだ空きのある希望を1つずつ取っていく方式。
+  // 全員に1回目が行き渡ってから2回目を配るので「一人でも多くの方に」が最優先になる。
+  // 同点は毎回シャッフルして、同じ人ばかりが負け続けないようにする。
+  const alive=new Map();
+  for(const [pid,v] of persons){
+    v.wins=v.okBase;
+    v.person=DB.people.find(pp=>pp.id===pid)||null;
+    for(const item of v.list) item.done=false;
+    alive.set(pid,v);
+  }
+  while(alive.size){
+    const cands=[]; const dead=[];
+    for(const [pid,v] of alive){
+      let cand=null;
+      for(const item of v.list){
+        if(item.done) continue;
+        if(cap[item.en.perfId]>=(Number(item.en.count)||1)){ cand=item; break; }
+      }
+      if(cand) cands.push({pid,v,item:cand});
+      else dead.push(pid);
     }
-    pairs.sort((a,b)=>b.eff-a.eff);
-    for(const {en} of pairs){
-      const need=Number(en.count)||1;
-      if(cap[en.perfId]>=need){ en.status="proposed"; cap[en.perfId]-=need; }
-      else en.status="proposedNg";
+    for(const pid of dead){
+      const v=alive.get(pid);
+      for(const item of v.list) if(!item.done){ item.en.status="proposedNg"; item.done=true; }
+      alive.delete(pid);
     }
+    if(!cands.length) break;
+    for(let i=cands.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [cands[i],cands[j]]=[cands[j],cands[i]]; }
+    cands.sort((a,b)=>{
+      if(a.v.wins!==b.v.wins) return a.v.wins-b.v.wins;   // 当選が少ない人を最優先
+      const pa=findPerf(show,a.item.en.perfId), pb=findPerf(show,b.item.en.perfId);
+      const ea=a.v.score+bdayBonus(a.v.person,pa)+premiereBonus(a.v.person,pa,show);
+      const eb=b.v.score+bdayBonus(b.v.person,pb)+premiereBonus(b.v.person,pb,show);
+      return eb-ea;
+    });
+    const top=cands[0];
+    cap[top.item.en.perfId]-=(Number(top.item.en.count)||1);
+    top.item.en.status="proposed";
+    top.item.done=true;
+    top.v.wins++;
   }
   save(); renderAlloc();
-  alert(`自動振り分けの案を作成しました${target?`（チェックした${target.size}回が対象）`:"（全回対象）"}。\n「案:○」「案:×」を確認して、必要なら調整のうえ確定してください。`);
+  alert(`自動振り分けの案を作成しました${target?`（チェックした${target.size}回が対象）`:"（全回対象）"}。\n当選数が少ない方を最優先に配分しています（同点は毎回ランダムに並ぶため、再実行すると案が変わることがあります）。\n「案:○」「案:×」を確認して、必要なら調整のうえ確定してください。`);
 }
 /* ---------- 振替 ---------- */
 function openTransferDialog(appId,enId){
