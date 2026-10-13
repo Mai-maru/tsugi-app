@@ -2753,16 +2753,47 @@ function exportSeatSheet(){
       ctx.drawImage(img,0,0,cv.width,cv.height);
       cv.toBlob(b=>{
         if(!b){ alert("画像の生成に失敗しました"); return; }
-        const a=document.createElement("a");
-        a.href=URL.createObjectURL(b);
-        a.download=(`配席表_${show.title}_${perfShort(perf)}`).replace(/[\\/:*?"<>|]/g,"-").replace(/\s+/g,"")+".png";
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(()=>URL.revokeObjectURL(a.href),20000);
+        _sheetBlob=b;
+        _sheetName=(`配席表_${show.title}_${perfShort(perf)}`).replace(/[\\/:*?"<>|]/g,"-").replace(/\s+/g,"");
+        openSeatSheetDialog();
       },"image/png");
     }finally{ URL.revokeObjectURL(url); }
   };
   img.onerror=()=>{ URL.revokeObjectURL(url); alert("画像の生成に失敗しました"); };
   img.src=url;
+}
+/* できあがった配席表のプレビュー＋保存方法の選択（スマホは共有シート→「画像を保存」で写真へ） */
+let _sheetBlob=null, _sheetName="";
+function sheetFile(){ return new File([_sheetBlob], _sheetName+".png", {type:"image/png"}); }
+function openSeatSheetDialog(){
+  const url=URL.createObjectURL(_sheetBlob);
+  let canShare=false;
+  try{ canShare=!!(navigator.canShare && navigator.canShare({files:[sheetFile()]})); }catch(e){}
+  showDialog("配席表のできあがり 🎫", `
+    <div class="flex" style="flex-wrap:wrap;margin-bottom:8px">
+      ${canShare?`<button class="btn" onclick="shareSeatSheet()">📤 写真に保存・LINEで共有</button>`:""}
+      <button class="btn ${canShare?"sub":""}" onclick="downloadSeatSheet()">⬇ ファイルとして保存</button>
+    </div>
+    <p class="muted" style="margin:0 0 10px">${canShare
+      ?"「📤」を押して<b>「画像を保存」</b>を選ぶとスマホの写真アプリに入ります。そのままLINEで送ることもできます。"
+      :"スマホでWeb版から開くと、写真アプリへの保存・LINE共有ボタンが使えます。"}<br>
+      下のプレビュー画像を長押し（PCは右クリック）して保存もできます。</p>
+    <img src="${url}" alt="${esc(_sheetName)}" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#fff">
+  `);
+}
+async function shareSeatSheet(){
+  try{
+    await navigator.share({files:[sheetFile()], title:_sheetName});
+  }catch(e){
+    if(e && e.name!=="AbortError") alert("共有を開けませんでした。プレビュー画像の長押し保存か「⬇ファイルとして保存」をお使いください。");
+  }
+}
+function downloadSeatSheet(){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(_sheetBlob);
+  a.download=_sheetName+".png";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),20000);
 }
 
 /* ================= 劇場追加（座席図生成） ================= */
