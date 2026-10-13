@@ -2472,8 +2472,9 @@ function buildSeatSVG(theater, floorIdx, state){
         const cls="seat"+(enId?" assigned":held?" held":"");
         const seatCls=typeof classOfSeat==="function"?classOfSeat(theater,floorIdx,r.row,n):null;
         const title=`${r.row}列${n}番${seatCls?`（${seatCls}席）`:""}`+(enId&&state.names[enId]?` ─ ${state.names[enId]}`:held?"（持ちチケット）":"");
+        const badge=state.badge?state.badge[key]:null; // 画像出力用：席内に観劇者番号を表示
         svg+=`<g class="seatg" data-key="${key}"><rect class="${cls}" x="${x}" y="${y}" width="${SW-1.6}" height="${SH-1.5}" rx="2"><title>${esc(title)}</title></rect>`+
-             `<text class="seat-num${enId?" on":""}" x="${x+(SW-1.6)/2}" y="${y+SH-3.6}">${n}</text></g>`;
+             `<text class="seat-num${enId?" on":""}" x="${x+(SW-1.6)/2}" y="${y+SH-3.6}">${badge!=null?badge:n}</text></g>`;
       }
     });
     const dyL=arcDepth*Math.pow((rowMinX-14-cx)/hw,2), dyR=arcDepth*Math.pow((rowMaxX+14-cx)/hw,2);
@@ -2548,6 +2549,7 @@ function renderSeatTab(){
         ${theater.floors.length>1?theater.floors.map((f,i)=>`<button class="btn mini ${i===seatFloorIdx?"":"ghost"}" onclick="seatFloorIdx=${i};renderSeatTab()">${esc(f.name)}</button>`).join(""):""}
         <span class="muted" style="margin-left:8px">表示:</span>
         ${[[1,"全体"],[1.6,"160%"],[2.4,"240%"]].map(([z,lab])=>`<button class="btn mini ${seatZoom===z?"":"ghost"}" onclick="seatZoom=${z};renderSeatTab()">${lab}</button>`).join("")}
+        <button class="btn mini gold" style="margin-left:8px" onclick="exportSeatSheet()">📷 配席表を画像で保存</button>
       </div>
     </div>
     <div class="flex no-print" style="margin:10px 0">
@@ -2637,6 +2639,130 @@ function autoAssignSeats(){
     while(got<Number(en.count)&&i<free.length){ perf.seatAssign[free[i]]=en.id; i++; got++; }
   }
   save(); renderSeatTab();
+}
+
+/* ================= 配席表の画像出力（出演者・スタッフ共有用） ================= */
+function seatRangeText(theater,keys){
+  // keys（階|列|番号、ソート済み）→「1階 5列 41〜44番」のような読みやすい表記
+  const multi=theater.floors.length>1;
+  const groups={}, order=[];
+  for(const k of keys){
+    const [fi,row,num]=k.split("|");
+    const gk=fi+"|"+row;
+    if(!groups[gk]){ groups[gk]=[]; order.push(gk); }
+    groups[gk].push(Number(num));
+  }
+  return order.map(gk=>{
+    const [fi,row]=gk.split("|");
+    const nums=groups[gk].sort((a,b)=>a-b);
+    const ranges=[]; let s=nums[0], e=nums[0];
+    for(let i=1;i<nums.length;i++){ if(nums[i]===e+1) e=nums[i]; else{ ranges.push([s,e]); s=e=nums[i]; } }
+    ranges.push([s,e]);
+    const fl=theater.floors[Number(fi)];
+    return `${multi?fl.name+" ":""}${row}列 `+ranges.map(([a,b])=>a===b?`${a}番`:`${a}〜${b}番`).join("・");
+  }).join(" ／ ");
+}
+function buildSeatSheetSVG(show,perf,theater){
+  const sortByKey=(a,b)=>{const A=a.split("|"),B=b.split("|");return Number(A[0])-Number(B[0])||Number(A[1])-Number(B[1])||Number(A[2])-Number(B[2]);};
+  const entries=seatEntriesOf(show,perf);
+  const names={}; for(const {app,en} of entries) names[en.id]=personName(app);
+  // 割当のある観劇者を席の若い順に並べ、①②…の番号を振る
+  const list=[];
+  for(const {app,en} of entries){
+    const keys=Object.keys(perf.seatAssign).filter(k=>perf.seatAssign[k]===en.id).sort(sortByKey);
+    if(keys.length) list.push({app,en,keys});
+  }
+  list.sort((x,y)=>sortByKey(x.keys[0],y.keys[0]));
+  const badge={};
+  list.forEach((it,i)=>{ it.no=i+1; for(const k of it.keys) badge[k]=String(it.no); });
+  const freeHeld=perf.heldSeats.filter(k=>!perf.seatAssign[k]);
+  // 表示する階＝持ち席/割当がある階（どちらも無ければ最初の階）
+  const flset=new Set([...Object.keys(perf.seatAssign),...perf.heldSeats].map(k=>Number(k.split("|")[0])));
+  const floors=flset.size?[...flset].sort((a,b)=>a-b):[0];
+
+  const SHEET_W=900, PAD=24;
+  let y=PAD, body="";
+  // ヘッダー
+  body+=`<text x="${PAD}" y="${y+20}" font-size="21" font-weight="bold" fill="#7c2d52">${esc(show.title)}　配席表</text>`;
+  const now=new Date();
+  body+=`<text x="${SHEET_W-PAD}" y="${y+20}" font-size="11" fill="#9a8a92" text-anchor="end">${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 作成</text>`;
+  y+=32;
+  body+=`<text x="${PAD}" y="${y+16}" font-size="15" fill="#4a3a42">${esc(perfLabel(perf))}　${esc(theater.name)}</text>`;
+  y+=26;
+  body+=`<line x1="${PAD}" y1="${y}" x2="${SHEET_W-PAD}" y2="${y}" stroke="#d8c9d1"/>`;
+  y+=10;
+  // 座席図（該当階のみ）
+  for(const fi of floors){
+    if(theater.floors.length>1){ body+=`<text x="${PAD}" y="${y+15}" font-size="14" font-weight="bold" fill="#a4456e">▼ ${esc(theater.floors[fi].name)}</text>`; y+=22; }
+    let inner=buildSeatSVG(theater,fi,{held:new Set(perf.heldSeats),assign:perf.seatAssign,names,badge,zoom:1});
+    const m=inner.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+    const w=Number(m[1]), h=Number(m[2]);
+    const dw=SHEET_W-PAD*2, dh=h*dw/w;
+    inner=inner.replace(/ style="[^"]*"/,"").replace(/^<svg /,`<svg x="${PAD}" y="${y}" width="${dw}" height="${dh}" `);
+    body+=inner;
+    y+=dh+6;
+  }
+  // 凡例
+  body+=`<rect x="${PAD}" y="${y+4}" width="12" height="11" rx="2" fill="#a4456e" stroke="#7c2d52" stroke-width=".6"/>`
+      +`<text x="${PAD+17}" y="${y+14}" font-size="12" fill="#4a3a42">割当済み（席内の数字＝下の一覧の番号）</text>`
+      +`<rect x="${PAD+300}" y="${y+4}" width="12" height="11" rx="2" fill="#f7d774" stroke="#b8963e" stroke-width=".6"/>`
+      +`<text x="${PAD+317}" y="${y+14}" font-size="12" fill="#4a3a42">持ちチケット・未割当${freeHeld.length?`（${freeHeld.length}枚）`:""}</text>`;
+  y+=28;
+  body+=`<line x1="${PAD}" y1="${y}" x2="${SHEET_W-PAD}" y2="${y}" stroke="#d8c9d1"/>`;
+  y+=12;
+  // 配席一覧
+  body+=`<text x="${PAD}" y="${y+16}" font-size="15" font-weight="bold" fill="#7c2d52">配席一覧（${list.length}名）</text>`;
+  y+=28;
+  const ROW=25;
+  for(const it of list){
+    const cy=y+ROW/2;
+    if(it.no%2===0) body+=`<rect x="${PAD-6}" y="${y}" width="${SHEET_W-PAD*2+12}" height="${ROW}" fill="#f7eef3"/>`;
+    body+=`<circle cx="${PAD+10}" cy="${cy}" r="9.5" fill="#a4456e"/>`
+        +`<text x="${PAD+10}" y="${cy+3.8}" font-size="${String(it.no).length>1?10:11}" font-weight="bold" fill="#fff" text-anchor="middle">${it.no}</text>`
+        +`<text x="${PAD+28}" y="${cy+4.6}" font-size="13.5" font-weight="bold" fill="#3c2f35">${esc(personName(it.app))}</text>`
+        +`<text x="${PAD+185}" y="${cy+4.6}" font-size="13" fill="#4a3a42">${esc(seatRangeText(theater,it.keys))}</text>`
+        +`<text x="${SHEET_W-PAD}" y="${cy+4.6}" font-size="12" fill="#9a8a92" text-anchor="end">${it.keys.length}枚</text>`;
+    y+=ROW;
+  }
+  if(!list.length){ body+=`<text x="${PAD}" y="${y+8}" font-size="13" fill="#9a8a92">まだ観劇者への割り当てがありません</text>`; y+=24; }
+  y+=PAD;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SHEET_W} ${y}" font-family="'Hiragino Sans','Yu Gothic UI','Meiryo',sans-serif">`
+    +`<style>.seat{stroke:#c9b8c0;stroke-width:.6;fill:#fff}.seat.held{fill:#f7d774;stroke:#b8963e}.seat.assigned{fill:#a4456e;stroke:#7c2d52}.seat-num{font-size:5.2px;fill:#6a5a63;text-anchor:middle}.seat-num.on{fill:#fff;font-weight:700}.rowlab{font-size:8px;fill:#a4456e;font-weight:700;text-anchor:middle}</style>`
+    +`<rect width="${SHEET_W}" height="${y}" fill="#fffdf9"/>`
+    +body+`</svg>`;
+}
+function exportSeatSheet(){
+  const show=seatShow(), perf=seatPerf();
+  if(!show||!perf){ alert("公演と回を選んでください"); return; }
+  const theater=theaterOf(show);
+  if(!theater){ alert("劇場が未設定です。公演設定で劇場を選んでください。"); return; }
+  perf.heldSeats=perf.heldSeats||[]; perf.seatAssign=perf.seatAssign||{};
+  if(!Object.keys(perf.seatAssign).length && !confirm("この回はまだ観劇者への割り当てがありません。座席図のみで保存しますか？")) return;
+  const svg=buildSeatSheetSVG(show,perf,theater);
+  const m=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+  const W=Number(m[1]), H=Number(m[2]);
+  const scale=Math.min(2.4, 16000/H);   // スマホで拡大しても読める解像度
+  const url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}));
+  const img=new Image();
+  img.onload=()=>{
+    try{
+      const cv=document.createElement("canvas");
+      cv.width=Math.round(W*scale); cv.height=Math.round(H*scale);
+      const ctx=cv.getContext("2d");
+      ctx.fillStyle="#fffdf9"; ctx.fillRect(0,0,cv.width,cv.height);
+      ctx.drawImage(img,0,0,cv.width,cv.height);
+      cv.toBlob(b=>{
+        if(!b){ alert("画像の生成に失敗しました"); return; }
+        const a=document.createElement("a");
+        a.href=URL.createObjectURL(b);
+        a.download=(`配席表_${show.title}_${perfShort(perf)}`).replace(/[\\/:*?"<>|]/g,"-").replace(/\s+/g,"")+".png";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(a.href),20000);
+      },"image/png");
+    }finally{ URL.revokeObjectURL(url); }
+  };
+  img.onerror=()=>{ URL.revokeObjectURL(url); alert("画像の生成に失敗しました"); };
+  img.src=url;
 }
 
 /* ================= 劇場追加（座席図生成） ================= */
