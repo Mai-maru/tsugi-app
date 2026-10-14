@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>お茶会 受付</title>
+<style>
+:root{ --bg:#faf7f4; --ink:#3a2e35; --sub:#8a7580; --accent:#a4456e; --accent-deep:#7c2d52; --line:#e8dfe4;
+  --ok:#2e8b57; --ok-soft:#ddf0e4; --ng:#c0392b; --ng-soft:#fbe3df; --warn-soft:#faf0d2; --info:#4169aa; --info-soft:#e2eaf8; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6}
+header{background:linear-gradient(135deg,#4a1f35 0%,#7c2d52 55%,#a4456e 100%);color:#fff;padding:12px 16px}
+header h1{font-size:16px;font-family:"Yu Mincho","Hiragino Mincho ProN",serif;letter-spacing:.05em}
+header .ev{font-size:12.5px;opacity:.9}
+main{max-width:720px;margin:0 auto;padding:10px 12px 60px}
+.box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 18px;margin-top:30px;text-align:center}
+input[type=text],input[type=search]{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:16px;font-family:inherit;background:#fff}
+button.btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px 16px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer}
+.muted{color:var(--sub);font-size:12.5px}
+.err{color:var(--ng);font-size:13px;margin-top:8px}
+.sticky{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0}
+.sum{font-size:13px;color:var(--accent-deep);font-weight:700;margin:4px 0}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.item.done{background:var(--ok-soft)} .item.part{background:var(--warn-soft)}
+.nm{font-size:16px;font-weight:700} .sub{font-size:12px;color:var(--sub)}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;font-weight:700;margin:2px 3px 0 0}
+.tag.ng{background:var(--ng-soft);color:var(--ng)} .tag.ok{background:var(--ok-soft);color:var(--ok)} .tag.info{background:var(--info-soft);color:var(--info)}
+.tag.warn{background:var(--warn-soft);color:#7a5a08} .tag.perk{background:#fff4d6;color:#8a6d20;border:1px solid #e6cf8a} .tag.vis{background:#e5f3f3;color:#2f7a7a}
+.ckb{margin-left:auto;min-width:92px;padding:11px 8px;border-radius:10px;border:2px solid var(--accent);background:#fff;color:var(--accent-deep);font-weight:700;font-size:14px;font-family:inherit}
+.item.done .ckb{background:var(--ok);border-color:var(--ok);color:#fff}
+.ckb.sm{min-width:76px;padding:7px 6px;font-size:13px}
+.mems{background:#fbf8fa;border-bottom:1px solid var(--line);padding:4px 12px 8px 26px}
+.mem{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.mem.done{color:var(--ok)} .mem.done .ckb{background:var(--ok);border-color:var(--ok);color:#fff}
+.mem.hit{background:#fff4d6;border-radius:6px}
+a{color:var(--accent-deep)}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#3a2e35;color:#fff;padding:9px 16px;border-radius:99px;font-size:13px;display:none;z-index:50}
+.ov{position:fixed;inset:0;background:rgba(40,20,30,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:60}
+.dlg{background:#fff;border-radius:14px;padding:18px;max-width:380px;width:100%}
+</style>
+</head>
+<body>
+<header><h1>お茶会 受付</h1><div class="ev" id="evInfo">CERCLE Mi-Sol-La</div></header>
+<main id="app"></main>
+<div id="toast"></div>
+<div id="dlgHost"></div>
+<script>
+const API_URL = "https://arezgremacymxvqwhzrv.supabase.co/functions/v1/ocha-reception";
+const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyZXpncmVtYWN5bXh2cXdoenJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDYzNjMsImV4cCI6MjA5Nzg4MjM2M30.htZGTQQQi31Q_0jJOP-xKVXNdzyUdq8c0geitp-urqQ";
+const CODE_KEY = "cercle_rc_code";
+const LS={get(k){try{return localStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{localStorage.setItem(k,v);}catch(e){}}, del(k){try{localStorage.removeItem(k);}catch(e){}}};
+let CODE=null, S=null, q="", onlyYet=false, open=new Set(), pollT=null, busy=false;
+
+function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function nameKey(s){ return String(s??"").normalize("NFKC").replace(/[\s　]/g,""); }
+function kanaKey(s){ return String(s??"").normalize("NFKC").replace(/[\s　]/g,"").replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)); }
+const WD=["日","月","火","水","木","金","土"];
+function fmtDate(iso){ if(!iso) return ""; const d=new Date(iso+"T00:00:00"); return `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`; }
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",2200); }
+function ask(msg){ return new Promise(res=>{ const h=document.getElementById("dlgHost");
+  h.innerHTML=`<div class="ov"><div class="dlg"><div style="white-space:pre-wrap">${esc(msg)}</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+  <button class="btn" style="background:#fff;color:var(--accent-deep);border:1px solid var(--accent)" id="dNo">キャンセル</button><button class="btn" id="dYes">OK</button></div></div></div>`;
+  const done=v=>{ h.innerHTML=""; res(v); }; document.getElementById("dYes").onclick=()=>done(true); document.getElementById("dNo").onclick=()=>done(false); }); }
+
+async function api(action, payload){
+  const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+API_KEY,"apikey":API_KEY},
+    body:JSON.stringify(Object.assign({action, code:CODE},payload||{}))});
+  let d=null; try{ d=await r.json(); }catch(e){} return {status:r.status, data:d};
+}
+function showLogin(msg){
+  clearInterval(pollT);
+  document.getElementById("evInfo").textContent="CERCLE Mi-Sol-La";
+  document.getElementById("app").innerHTML=`<div class="box"><p style="margin-bottom:12px">運営から受け取った<b>受付コード</b>を入力してください</p>
+    <input type="text" id="codeIn" placeholder="例：ABCD-EFGH-JK" autocapitalize="characters" autocomplete="off" onkeydown="if(event.key==='Enter')login()">
+    <button class="btn" style="width:100%;margin-top:10px" onclick="login()">受付を始める</button>
+    ${msg?`<div class="err">${esc(msg)}</div>`:""}<p class="muted" style="margin-top:12px">QRコードから開いた場合は入力不要です。</p></div>`;
+}
+async function login(){ const v=document.getElementById("codeIn").value.trim(); if(!v) return; CODE=v; await load(true); }
+async function load(first){
+  let r; try{ r=await api("rc_state"); }catch(e){ if(first) showLogin("接続できませんでした。電波の良い場所でもう一度お試しください。"); else toast("通信できませんでした（自動で再試行します）"); return; }
+  if(r.status===401){ LS.del(CODE_KEY); CODE=null; showLogin(r.data?.error||"受付コードが正しくありません"); return; }
+  if(r.status!==200){ if(first) showLogin("エラーが発生しました（"+r.status+"）"); return; }
+  S=r.data; LS.set(CODE_KEY, CODE);
+  document.getElementById("evInfo").textContent=`${fmtDate(S.event.date)} ${S.event.title}${S.event.venue?"（"+S.event.venue+"）":""}`;
+  render(); clearInterval(pollT); pollT=setInterval(()=>{ if(!busy && !document.getElementById("dlgHost").innerHTML) load(false); },10000);
+}
+async function confirmSafe(){ if(await ask("この端末から受付コードを消して終了しますか？")){ LS.del(CODE_KEY); CODE=null; S=null; showLogin(); } }
+
+function groups(){
+  const ck=S.checkin||{};
+  return S.groups.map(g=>{ const mem=g.members.map((m,i)=>({...m,i,key:g.id+":"+i,done:!!(ck[g.id+":"+i]?.v)}));
+    return {...g, mem, n:mem.length, done:mem.filter(x=>x.done).length}; })
+   .sort((a,b)=>kanaKey(a.kana||a.name).localeCompare(kanaKey(b.kana||b.name),"ja"));
+}
+// 同じブロック・列の連番はまとめて「C-1-1〜10」
+function seatsText(mem){
+  const ps=mem.map(m=>m.seat).filter(Boolean).map(id=>{ const m=String(id).match(/^(.+)-(\d+)-(\d+)$/); return m?{k:m[1]+"-"+m[2],n:+m[3]}:{k:id,n:null}; });
+  const g=new Map(); for(const p of ps){ if(!g.has(p.k)) g.set(p.k,[]); g.get(p.k).push(p.n); }
+  return [...g.entries()].map(([k,ns])=>{ if(ns[0]==null) return k; ns.sort((a,b)=>a-b); const parts=[]; let s=ns[0],e=ns[0];
+    for(const x of ns.slice(1)){ if(x===e+1) e=x; else { parts.push(s===e?`${s}`:`${s}〜${e}`); s=e=x; } } parts.push(s===e?`${s}`:`${s}〜${e}`);
+    return `${k}-${parts.join(",")}`; }).join("／");
+}
+function render(){
+  const all=groups(); const persons=all.reduce((s,g)=>s+g.n,0), doneP=all.reduce((s,g)=>s+g.done,0), doneG=all.filter(g=>g.done===g.n).length;
+  const qk=nameKey(q), kk=kanaKey(q); const hit=m=>q && (nameKey(m.name).includes(qk) || (kk && kanaKey(m.kana).includes(kk)));
+  let list=all; if(q) list=list.filter(g=>g.mem.some(hit)||(kk&&kanaKey(g.kana).includes(kk))); if(onlyYet) list=list.filter(g=>g.done<g.n);
+  const focus=document.activeElement?.id==="q"; const pos=document.getElementById("q")?.selectionStart;
+  document.getElementById("app").innerHTML=`
+  <div class="sticky"><input type="search" id="q" placeholder="お名前・ふりがなで検索（同伴者でもOK）" value="${esc(q)}" oninput="q=this.value;render()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+      <label class="muted"><input type="checkbox" ${onlyYet?"checked":""} onchange="onlyYet=this.checked;render()"> 未受付だけ</label>
+      <span class="sum">来場 ${doneP}/${persons}名 ・ 完了 ${doneG}/${all.length}組</span></div></div>
+  <div class="card">${list.slice(0,150).map(g=>{
+    const full=g.done===g.n, part=g.done>0&&!full; const compHit=q&&g.mem.some(m=>m.i>0&&hit(m)); const op=g.n>1&&(open.has(g.id)||compHit);
+    const btn = g.n===1 ? `<button class="ckb" onclick="ck(['${g.mem[0].key}'],${!full})">${full?"✓ 受付済":"受付"}</button>`
+      : `<button class="ckb" onclick="ckGroup('${g.id}')">${full?"✓ 全員済":part?`残り${g.n-g.done}名を受付`:`全員受付（${g.n}名）`}</button>`;
+    return `<div class="item ${full?"done":part?"part":""}"><div style="flex:1;min-width:0">
+      <div class="nm">${esc(g.name)}<span style="font-weight:400;font-size:13px">様</span> ${g.n>1?`<span class="tag ${full?"ok":part?"warn":"info"}">${g.done}/${g.n}名</span>`:""}</div>
+      <div class="sub">${esc(g.kana)}${seatsText(g.mem)?` ／ 💺${esc(seatsText(g.mem))}`:""}</div>
+      <div>${g.visitor?`<span class="tag vis">ご見学 ${esc(g.affiliation)}</span>`:""}${g.unpaid?`<span class="tag ng">未入金</span>`:""}${g.perks.map(p=>`<span class="tag perk">★${p}名以上特典</span>`).join("")}${g.mem.filter(m=>m.prevWin).map(m=>`<span class="tag warn">🎁前回当選：${esc(m.name)}様</span>`).join("")}</div>
+      ${g.n>1?`<a href="#" class="muted" onclick="tog('${g.id}');return false">${op?"▲ 閉じる":"▼ 1人ずつ受付（別々にご来場の場合）"}</a>`:""}</div>${btn}</div>
+      ${op?`<div class="mems">${g.mem.map(m=>`<div class="mem ${m.done?"done":""} ${hit(m)?"hit":""}"><span style="flex:1">${m.i===0?"👑 ":""}${esc(m.name)}様 <span class="muted">${esc(m.kana)}${m.seat?" 💺"+esc(m.seat):""}</span></span>
+        <button class="ckb sm" onclick="ck(['${m.key}'],${!m.done})">${m.done?"✓ 受付済":"受付"}</button></div>`).join("")}</div>`:""}`;
+  }).join("")||`<p class="muted" style="padding:12px">該当なし</p>`}</div>
+  ${list.length>150?`<p class="muted">先頭150組を表示中。検索で絞り込んでください。</p>`:""}
+  <p class="muted" style="margin-top:14px;text-align:center">受付状況は10秒ごとに自動で更新されます ・ <a href="#" onclick="confirmSafe();return false">終了する</a></p>`;
+  if(focus){ const i=document.getElementById("q"); i.focus(); try{ i.setSelectionRange(pos,pos); }catch(e){} }
+}
+function tog(id){ if(open.has(id)) open.delete(id); else open.add(id); render(); }
+async function ck(keys,v,noAsk){
+  if(!v && !noAsk && !await ask("受付を取り消しますか？")) return;
+  busy=true; const before={}; keys.forEach(k=>{ before[k]=S.checkin[k]; S.checkin[k]={v,t:Date.now()}; }); render();   // 先に画面へ反映
+  try{ const r=await api("rc_checkin",{keys,v});
+    if(r.status===200&&r.data?.ok){ Object.assign(S.checkin, r.data.updated); toast(v?"受付しました":"取り消しました"); }
+    else { keys.forEach(k=>S.checkin[k]=before[k]); render(); if(r.status===401){ showLogin(r.data?.error); } else toast(r.data?.error||"保存できませんでした。もう一度押してください"); }
+  }catch(e){ keys.forEach(k=>S.checkin[k]=before[k]); render(); toast("通信できませんでした。もう一度押してください"); }
+  finally{ busy=false; }
+}
+async function ckGroup(id){
+  const g=groups().find(x=>x.id===id); const full=g.done===g.n;
+  if(full){ if(!await ask(`${g.name}様のグループ（${g.n}名）の受付をすべて取り消しますか？`)) return; return ck(g.mem.map(m=>m.key),false,true); }
+  return ck(g.mem.filter(m=>!m.done).map(m=>m.key),true);
+}
+// 起動：QRコードのURL（#c=コード）→ 端末に保存済みのコード → 入力画面
+(()=>{ const m=location.hash.match(/[#&]c=([^&]+)/);
+  if(m){ CODE=decodeURIComponent(m[1]); history.replaceState(null,"",location.pathname); }
+  else CODE=LS.get(CODE_KEY);
+  if(CODE) load(true); else showLogin();
+})();
+</script>
+</body>
+</html>
