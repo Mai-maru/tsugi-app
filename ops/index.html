@@ -21,10 +21,28 @@ a.card p{font-size:12.5px;color:var(--sub);margin-top:3px;line-height:1.6}
 a.card.soon{opacity:.55;pointer-events:none}
 .badge{font-size:11px;background:#eee;color:#777;border-radius:99px;padding:1px 8px;margin-left:6px;vertical-align:middle}
 footer{text-align:center;color:var(--sub);font-size:11.5px;padding-bottom:30px}
+#login{position:fixed;inset:0;background:linear-gradient(135deg,#4a1f35,#a4456e);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+#login .box{background:#fff;border-radius:16px;padding:26px 22px;max-width:360px;width:100%;text-align:center}
+#login h1{font-family:"Yu Mincho",serif;color:var(--accent-deep);font-size:20px;margin-bottom:4px}
+#login input[type=password]{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:15px;font-family:inherit}
+#login button,.out{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.out{background:transparent;border:1px solid rgba(255,255,255,.6);font-size:12px;padding:4px 12px;margin-top:10px}
+#loginStatus{color:#c0392b;font-size:12.5px;margin-top:8px;min-height:1em}
+.muted{color:var(--sub);font-size:12.5px}
 </style>
 </head>
 <body>
-<header><h1>CERCLE Mi-Sol-La</h1><p>運営アプリ</p></header>
+<div id="login">
+  <div class="box">
+    <h1>CERCLE Mi-Sol-La</h1>
+    <p class="muted" style="margin-bottom:14px">運営アプリ（チケット取次と同じパスワード）</p>
+    <input type="password" id="pw" placeholder="パスワード" onkeydown="if(event.key==='Enter')doLogin()">
+    <label class="muted" style="display:block;margin:8px 0"><input type="checkbox" id="remember" checked> ログイン状態を保持</label>
+    <button style="width:100%" onclick="doLogin()">ログイン</button>
+    <div id="loginStatus"></div>
+  </div>
+</div>
+<header><h1>CERCLE Mi-Sol-La</h1><p>運営アプリ</p><button class="out" onclick="logout()">ログアウト</button></header>
 <main>
   <a class="card" href="https://mai-maru.github.io/tsugi-app/">
     <div class="ic">🎫</div>
@@ -40,5 +58,34 @@ footer{text-align:center;color:var(--sub);font-size:11.5px;padding-bottom:30px}
   </a>
 </main>
 <footer>名簿・申込データは各システムで共有しています（パスワードも共通です）</footer>
+<script>
+const API_URL = "https://arezgremacymxvqwhzrv.supabase.co/functions/v1/tsugi-api";
+const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyZXpncmVtYWN5bXh2cXdoenJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDYzNjMsImV4cCI6MjA5Nzg4MjM2M30.htZGTQQQi31Q_0jJOP-xKVXNdzyUdq8c0geitp-urqQ";
+const PW_KEY = "isolla_tsugi_pw";        // 取次システム・お茶会管理と共通（保持する場合）
+const PW_SESSION = "cercle_ops_pw";       // 保持しない場合（このタブを閉じるまで）
+const LS={get(k){try{return localStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{localStorage.setItem(k,v);}catch(e){}}, del(k){try{localStorage.removeItem(k);}catch(e){}}};
+const SS={get(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}, del(k){try{sessionStorage.removeItem(k);}catch(e){}}};
+async function check(pw){
+  const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+API_KEY,"apikey":API_KEY},body:JSON.stringify({action:"login",password:pw})});
+  let d=null; try{ d=await r.json(); }catch(e){} return r.status===200&&d&&d.ok;
+}
+async function doLogin(){
+  const pw=document.getElementById("pw").value; const st=document.getElementById("loginStatus");
+  if(!pw){ st.textContent="パスワードを入力してください"; return; }
+  st.style.color="#8a7580"; st.textContent="確認中…";
+  let ok=false; try{ ok=await check(pw); }catch(e){ st.style.color=""; st.textContent="接続できませんでした"; return; }
+  if(!ok){ st.style.color=""; st.textContent="パスワードが違います"; return; }
+  if(document.getElementById("remember").checked) LS.set(PW_KEY,pw); else { LS.del(PW_KEY); }
+  SS.set(PW_SESSION,pw);
+  document.getElementById("login").style.display="none";
+}
+function logout(){ LS.del(PW_KEY); SS.del(PW_SESSION); location.reload(); }
+(async()=>{
+  const pw=SS.get(PW_SESSION)||LS.get(PW_KEY);
+  if(!pw) return;
+  try{ if(await check(pw)){ SS.set(PW_SESSION,pw); document.getElementById("login").style.display="none"; return; } }catch(e){}
+  LS.del(PW_KEY); SS.del(PW_SESSION);
+})();
+</script>
 </body>
 </html>

@@ -234,7 +234,7 @@ async function tryLogin(pw, remember, silent){
   PASSWORD=pw;
   let r; try{ r=await api("login"); }catch(e){ status.textContent="接続できませんでした"; PASSWORD=null; return false; }
   if(r.status===200 && r.data?.ok){
-    if(remember) LS.set(PW_KEY,pw);
+    if(remember && !SS.get(PW_SESSION)) LS.set(PW_KEY,pw);
     document.getElementById("loginOverlay").style.display="none";
     await loadAll(); return true;
   }
@@ -1655,7 +1655,16 @@ function showDialog(title, body){
 function closeDialog(){ document.getElementById("dialogHost").innerHTML=""; }
 
 /* ================= 起動 ================= */
-(async()=>{ const pw=LS.get(PW_KEY); if(pw){ const ok=await tryLogin(pw,true,true); if(!ok) LS.del(PW_KEY); } })();
+// 入口（運営アプリ）でログインした状態で開く。未ログインなら入口のログイン画面へ戻す
+const PW_SESSION="cercle_ops_pw";
+const SS={get(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}, del(k){try{sessionStorage.removeItem(k);}catch(e){}}};
+function goPortal(){ location.replace("./index.html"); }
+(async()=>{
+  const pw=SS.get(PW_SESSION)||LS.get(PW_KEY);
+  if(!pw){ if(/^https?:/.test(location.protocol)) goPortal(); return; }   // 手元のファイルで開いたときは従来どおりこの画面でログイン
+  const ok=await tryLogin(pw,true,true);
+  if(!ok){ LS.del(PW_KEY); SS.del(PW_SESSION); if(/^https?:/.test(location.protocol)) goPortal(); }
+})();
 </script>
 </body>
 </html>
