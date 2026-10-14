@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>CERCLE Mi-Sol-La 運営アプリ</title>
+<style>
+:root{ --ink:#3a2e35; --sub:#8a7580; --accent:#a4456e; --accent-deep:#7c2d52; --line:#e8dfe4; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;background:#faf7f4;color:var(--ink);min-height:100vh}
+header{background:linear-gradient(135deg,#4a1f35 0%,#7c2d52 55%,#a4456e 100%);color:#fff;padding:34px 20px 30px;text-align:center}
+header h1{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-size:24px;letter-spacing:.08em}
+header p{font-size:12.5px;opacity:.85;letter-spacing:.2em;margin-top:6px}
+main{max-width:720px;margin:-16px auto 40px;padding:0 16px;display:grid;gap:14px}
+a.card{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 20px;text-decoration:none;color:inherit;box-shadow:0 4px 16px rgba(90,50,70,.10);transition:transform .12s}
+a.card:hover{transform:translateY(-2px)}
+a.card .ic{font-size:34px;width:56px;height:56px;border-radius:14px;background:#f3dce6;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+a.card h2{font-size:17px;color:var(--accent-deep)}
+a.card p{font-size:12.5px;color:var(--sub);margin-top:3px;line-height:1.6}
+a.card.soon{opacity:.55;pointer-events:none}
+.badge{font-size:11px;background:#eee;color:#777;border-radius:99px;padding:1px 8px;margin-left:6px;vertical-align:middle}
+footer{text-align:center;color:var(--sub);font-size:11.5px;padding-bottom:30px}
+</style>
+</head>
+<body>
+<header><h1>CERCLE Mi-Sol-La</h1><p>運営アプリ</p></header>
+<main>
+  <a class="card" href="https://mai-maru.github.io/tsugi-app/">
+    <div class="ic">🎫</div>
+    <div><h2>チケット取次システム</h2><p>名簿・申込・振り分け・配席・ご案内文・返金</p></div>
+  </a>
+  <a class="card" href="./ocha.html">
+    <div class="ic">☕</div>
+    <div><h2>お茶会管理</h2><p>申込取込・特典・配席・リマインド文・当日受付・抽選会</p></div>
+  </a>
+  <a class="card soon" href="#">
+    <div class="ic">🛍</div>
+    <div><h2>物販管理<span class="badge">準備中</span></h2><p>グッズの注文・在庫・お渡し管理</p></div>
+  </a>
+</main>
+<footer>名簿・申込データは各システムで共有しています（パスワードも共通です）</footer>
+</body>
+</html>
