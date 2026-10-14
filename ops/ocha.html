@@ -1277,18 +1277,15 @@ async function autoSeat(onlyYet){
 /* ---------- 席の増減・編集 ---------- */
 function seatUsed(id){ return seatOcc().has(id); }
 function nextSeatNo(r){ const ns=r.seats.map(s=>parseInt(s.n)).filter(n=>!isNaN(n)); return String(ns.length?Math.max(...ns)+1:1); }
+// 座席番号は「縦の列＝同じ番号」（右端の列が1番）。x=右端からの位置なので 番号＝x+1
+function colNo(x){ return String(x+1); }
 async function addSeat(bn,rno,side){
   const {b,r}=findSeat(bn,rno,null); const xs=r.seats.map(s=>s.x);
   const x = side==="left" ? (xs.length?Math.max(...xs)+1:0) : (xs.length?Math.min(...xs)-1:0);
-  // 今ある席の番号は一切変えず、新しい席の番号だけ決める（左端＝続きの番号、右端＝1番側の空き番号）
-  const nums=r.seats.map(q=>parseInt(q.n)).filter(v=>!isNaN(v));
-  let def; if(side==="left") def=String(nums.length?Math.max(...nums)+1:1);
-  else { const mn=nums.length?Math.min(...nums):1; def=mn>1?String(mn-1):"0"; }
-  const v=await askText(`${bn}ブロック${rno}列の${side==="left"?"左端":"右端"}に席を1つ足します。
-新しい席の番号を入れてください（今ある席の番号は変わりません）。`, def);
-  if(v==null) return; const n=String(v).normalize("NFKC").trim();
-  if(!n){ notify("番号を入れてください"); return; }
-  if(r.seats.some(q=>String(q.n)===n)){ notify(`${n}番はこの列にすでにあります。別の番号にしてください。`); return; }
+  let n=colNo(x);
+  if(r.seats.some(q=>String(q.n)===n)){   // 手で番号を変えていて重なるときだけ聞く
+    const v=await askText(`${n}番はこの列にすでにあります。新しい席の番号を入れてください（今ある席の番号は変わりません）。`, ""); if(v==null) return;
+    n=String(v).normalize("NFKC").trim(); if(!n||r.seats.some(q=>String(q.n)===n)){ notify("その番号は使えません"); return; } }
   r.seats.push({n, x}); save(); renderSeats();
 }
 async function removeSeat(bn,rno,side){
@@ -1305,7 +1302,7 @@ async function addRow(bn){
   // 中央寄りに詰める（ブロックが会場の左半分なら右寄せ、右半分なら左寄せ）
   const {geo,total}=seatGeo(curEvent().layout); const g=geo.find(x=>x.b===b);
   const leftHalf = g.off+g.w/2 < total/2;
-  const seats=[]; for(let i=0;i<cnt;i++) seats.push({n:String(i+1), x: leftHalf? g.minX+i : g.maxX-(cnt-1)+i});
+  const seats=[]; for(let i=0;i<cnt;i++){ const x=leftHalf? g.minX+i : g.maxX-(cnt-1)+i; seats.push({n:colNo(x), x}); }   // 縦の列に合わせた番号
   b.rows.push({no:(last?last.no:0)+1, seats}); save(); renderSeats();
 }
 async function removeRow(bn){
@@ -1356,6 +1353,7 @@ function openVenueMenu(){
   showDialog("会場の設定", `
     <p>この開催の座席図：<b>${venueSeatCount(ev.layout)}席</b>${v?`（ひな形「${esc(v.name)}」${venueSeatCount(v.layout)}席から作成）`:""}</p>
     <div class="flex" style="margin-top:10px;flex-direction:column;align-items:stretch">
+      <button class="btn ghost" onclick="alignSeatNumbers()">座席番号を縦の列にそろえる（右端の列＝1番）</button>
       <button class="btn ghost" onclick="saveAsVenue()">今の座席図を会場のひな形として保存（次回も使う）</button>
       <button class="btn danger" onclick="resetLayout()">座席図を選び直す（この開催の配席はすべて解除）</button>
     </div>
@@ -1366,6 +1364,16 @@ async function saveAsVenue(){
   if(cur && await ask(`ひな形「${cur.name}」を今の座席図（${venueSeatCount(ev.layout)}席）で上書きしますか？\n［キャンセル］で別の会場として新しく保存します`)){ cur.layout=JSON.parse(JSON.stringify(stripState(ev.layout))); }
   else { const name=await askText("会場の名前", ev.venue||""); if(!name) return; const v={id:uid(), name, layout:JSON.parse(JSON.stringify(stripState(ev.layout)))}; D.teaVenues.push(v); ev.venueId=v.id; }
   closeDialog(); save(); notify("保存しました");
+}
+async function alignSeatNumbers(){
+  const ev=curEvent(); const map=new Map(); let changed=0;
+  for(const b of ev.layout.blocks) for(const r of b.rows) for(const q of r.seats){ const nn=colNo(q.x); if(String(q.n)!==nn){ map.set(seatIdOf(b,r,q), `${b.name}-${r.no}-${nn}`); changed++; } }
+  if(!changed){ closeDialog(); notify("すでにすべての列で番号がそろっています。"); return; }
+  if(!await ask(`${changed}席の番号を、縦の列に合わせて付け直します。
+配席済みの人の席も新しい番号に付け替えます。よろしいですか？`)) return;
+  for(const b of ev.layout.blocks) for(const r of b.rows) for(const q of r.seats) q.n=colNo(q.x);
+  for(const a of eventApps()) if(a.seats) a.seats=a.seats.map(id=>id&&map.has(id)?map.get(id):id);
+  closeDialog(); save(); renderSeats(); notify(`${changed}席の番号をそろえました。`);
 }
 function stripState(L){ const c=JSON.parse(JSON.stringify(L)); for(const b of c.blocks) for(const r of b.rows) for(const s of r.seats) delete s.st; return c; }
 async function resetLayout(){ if(!await ask("この開催の座席図と配席をすべて解除して、会場を選び直しますか？")) return; const ev=curEvent(); delete ev.layout; for(const a of eventApps()) a.seats=[]; closeDialog(); save(); renderSeats(); }
@@ -1477,7 +1485,8 @@ function renderCheckin(){
   ${receptionCardHtml()}
   <div class="sticky-search"><input type="search" id="ckq" placeholder="お名前・ふりがなで検索（同伴者のお名前でもOK）" value="${esc(q)}" oninput="ckQuery=this.value;renderCheckinKeep()" style="font-size:16px;padding:10px 12px">
   <div class="flex" style="justify-content:space-between;margin-top:4px"><label class="muted"><input type="checkbox" ${ckOnlyYet?"checked":""} onchange="ckOnlyYet=this.checked;renderCheckin()"> 未受付（の人がいる組）だけ表示</label>
-    ${donePersons?`<button class="btn danger sm" onclick="resetCheckins()">受付記録をすべてリセット</button>`:""}</div></div>
+    <span class="flex"><button class="btn ghost sm" onclick="exportCheckinList()">📥 受付リストをExcelで保存</button>
+    ${donePersons?`<button class="btn danger sm" onclick="resetCheckins()">受付記録をすべてリセット</button>`:""}</span></div></div>
   <div class="card" style="padding:0;overflow:hidden">
   ${groups.slice(0,150).map(g=>{
     const a=g.a, full=g.done===g.n, part=g.done>0&&!full, unpaid=a.kind!=="visitor"&&!a.paid;
@@ -1585,6 +1594,28 @@ async function toggleCheckin(key){
   const cur=D.teaCheckin[key]; const v=!(cur&&cur.v);
   if(!v && !await ask("受付を取り消しますか？")) return;
   D.teaCheckin[key]={v, t:Date.now(), by:CLIENT_ID}; save(); renderCheckinKeep();
+}
+// 受付画面と同じ並び（代表者の50音順）でExcelに書き出す。印刷して紙の受付表にも使える
+function exportCheckinList(){
+  if(typeof XLSX==="undefined"){ notify("Excel用のライブラリが読み込めていません。再読み込みしてください。"); return; }
+  const ev=curEvent(); const gs=checkinGroups();
+  const fmtTel=p=>{ const d=String(p||"").replace(/[^\d+]/g,""); return d.length===11?`${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`:d; };
+  const g1=[["No","代表者","ふりがな","人数","同伴者","座席","電話番号","入金","特典","区分・ご所属","前回当選（抽選対象外）","受付状況","受付チェック"]];
+  const g2=[["No","代表者","お名前","ふりがな","","座席","受付","受付チェック"]];
+  gs.forEach((g,k)=>{ const a=g.a, no=k+1;
+    g1.push([no, a.name, sortKana(a)===a.name?"":sortKana(a), g.n, (a.companions||[]).map(c=>c.name).join("、"), seatsText(a.seats)||"",
+      fmtTel(a.phone||personOf(a.personId)?.phone), a.kind==="visitor"?"-":(a.paid?"済":"未入金"), perksOf(a).map(p=>`${p.min}名以上`).join("・"),
+      a.kind==="visitor"?`ご見学 ${a.affiliation||""}`:(TYPE_LABEL[personOf(a.personId)?.type]||""), g.mem.filter(x=>x.prevWin).map(x=>x.m.name).join("、"),
+      g.done===g.n?"受付済":g.done?`${g.done}/${g.n}名`:"未", ""]);
+    g.mem.forEach(x=>g2.push([no, a.name, x.m.name, x.m.kana||"", x.m.role==="rep"?"代表者":"同伴者", memberSeat(a,x.i)||"", x.done?"済":"", ""]));
+  });
+  const wb=XLSX.utils.book_new();
+  const s1=XLSX.utils.aoa_to_sheet(g1); s1["!cols"]=[4,16,18,5,40,22,14,7,12,16,18,9,10].map(w=>({wch:w}));
+  const s2=XLSX.utils.aoa_to_sheet(g2); s2["!cols"]=[4,16,16,18,7,10,6,10].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, s1, "受付リスト（組ごと）");
+  XLSX.utils.book_append_sheet(wb, s2, "参加者一覧（1人ずつ）");
+  const d=new Date(); const stamp=`${d.getMonth()+1}-${d.getDate()}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}`;
+  XLSX.writeFile(wb, `${ev.title}_受付リスト_${stamp}.xlsx`.replace(/[\\/:*?"<>|]/g,"_"));
 }
 // 動作確認のあとなど：この開催の受付記録をすべて「未受付」に戻す
 async function resetCheckins(){
