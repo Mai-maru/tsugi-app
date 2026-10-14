@@ -100,6 +100,8 @@ table.list tr.cancel td{opacity:.45;text-decoration:line-through}
 .seat-side{width:280px;flex-shrink:0;max-height:78vh;overflow:auto}
 .seat-li{background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 8px;margin:3px 0;cursor:pointer;font-size:13px}
 .seat-li.sel{outline:2px solid var(--accent)}
+.seat-chunk{margin:4px 0 0 6px;padding:4px 8px;border:1px dashed var(--line);border-radius:6px;background:#fbf8fa;font-size:12.5px}
+.seat-chunk.sel{outline:2px solid var(--gold);background:#fff4d6}
 button.mini{border:1px solid var(--line);background:#fff;border-radius:4px;font-size:10px;padding:0 4px;height:calc(var(--c)*.7);cursor:pointer;color:var(--accent-deep);font-family:inherit}
 /* 受付 */
 .ck-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:#fff}
@@ -935,7 +937,11 @@ function renderSeatsInner(){
     if(seatQ.trim() && !membersOf(a).some(m=>nameKey(m.name).includes(qk)||kanaKey(m.kana).includes(kq))) return "";
     return `<div class="seat-li ${seatSel===a.id?"sel":""}" onclick="selectSeatApp('${a.id}')" style="border-left:6px solid hsl(${hueOf(a.groupId||a.id)} 60% 70%)">
       <div>${a.seatFixed?"📌":""}${a.priority?"⭐":""}<b>${esc(a.name)}</b>様 ${a.kind==="visitor"?`<span class="tag visitor">見学</span>`:""}<span class="tag ${k>=n?"ok":k?"warn":"ng"}">${k}/${n}</span></div>
-      <div class="comp">${k?esc(seatsText(a.seats)):"未配席"}${planText(a)&&n>1?` ／ ${esc(planText(a))}`:""}</div></div>`; };
+      <div class="comp">${k?esc(seatsText(a.seats)):"未配席"}${planText(a)&&n>1?` ／ ${esc(planText(a))}`:""}</div>
+      ${a.kind!=="visitor"&&planParts(a).length>1?planParts(a).map(p=>{ const pk=p.idx.filter(i=>(a.seats||[])[i]).length;
+        return `<div class="seat-chunk ${seatSel===a.id&&seatSelChunk===p.ci?"sel":""}" onclick="event.stopPropagation();selectSeatChunk('${a.id}',${p.ci})">
+          <b>${CHUNK_NAMES[p.ci]}組</b> ${p.idx.length}名${p.idx.length>1?(p.together?"・連席":"・バラ"):""}${p.front?"":"・後方可"} <span class="tag ${pk>=p.idx.length?"ok":pk?"warn":"ng"}">${pk}/${p.idx.length}</span>
+          <div class="comp">${p.idx.map(i=>esc(membersOf(a)[i]?.name||"")).join("、")}</div></div>`; }).join(""):""}</div>`; };
   el.innerHTML=`<h2>配席 <span class="muted">${esc(ev.venue||"")}</span></h2>
   <div class="stats" style="margin-bottom:10px">
     <div class="stat"><div class="n">${seated}/${needAll}</div><div class="l">配席済み（ご見学者含む）</div></div>
@@ -963,7 +969,8 @@ function renderSeatsInner(){
     ${seatEdit?"":`<div class="seat-side">
       <input type="search" id="seatQ" placeholder="名前・ふりがなで探す" value="${esc(seatQ)}" oninput="seatQ=this.value;renderSeats();const i=document.getElementById('seatQ');i.focus();i.setSelectionRange(i.value.length,i.value.length)" style="margin-bottom:6px">
       ${selApp?`<div class="notice info" style="margin-top:0">選択中：<b>${esc(selApp.name)}</b>様（${seatCount(selApp)}/${headcount(selApp)}席）${selApp.seatFixed?` <span class="tag warn">📌固定</span>`:""}<br>
-        ${seatCount(selApp)<headcount(selApp)?`<b>→ 座席図の空席をタップして配置</b><br>`:""}
+        ${seatCount(selApp)<headcount(selApp)?`<b>→ 座席図の空席をタップして配置${planParts(selApp).length>1?`（${seatSelChunk!=null?CHUNK_NAMES[seatSelChunk]+"組":CHUNK_NAMES[manualTarget(selApp).ci]+"組から"}）`:""}</b><br>`:""}
+        ${planParts(selApp).length>1?`<span class="muted">組ごとに置くときは、一覧の「A組」「B組」をタップして選んでください。</span><br>`:""}
         ${membersOf(selApp).map((m,i)=>`${esc(m.name)}：${esc(memberSeat(selApp,i))||"－"}`).join("<br>")}
         <div class="flex" style="margin-top:6px"><button class="btn sm ghost" onclick="toggleFixed('${selApp.id}')">${selApp.seatFixed?"📌固定を外す":"📌固定する"}</button><button class="btn sm ghost" onclick="unseatApp('${selApp.id}')">この人の席を外す</button><button class="btn sm ghost" onclick="seatSel=null;renderSeats()">選択解除</button></div></div>`:""}
       <label class="muted"><input type="checkbox" ${seatOnlyYet?"checked":""} onchange="seatOnlyYet=this.checked;renderSeats()"> 未配席の人だけ</label>
@@ -1001,7 +1008,16 @@ function seatMapHtml(ev, occ){
     <div class="stage">${esc(L.front||"高砂")}（前方）</div></div>`;
 }
 function findSeat(bn,rno,n){ const b=curEvent().layout.blocks.find(x=>x.name===bn); const r=b&&b.rows.find(x=>x.no===rno); const s=r&&r.seats.find(x=>String(x.n)===String(n)); return {b,r,s}; }
-function selectSeatApp(id){ seatSel = seatSel===id?null:id; renderSeats(); }
+let seatSelChunk=null;   // 組（A組・B組…）を選んで手動配席するとき
+function selectSeatApp(id){ seatSel = (seatSel===id&&seatSelChunk==null)?null:id; seatSelChunk=null; renderSeats(); }
+function selectSeatChunk(id,ci){ if(seatSel===id&&seatSelChunk===ci){ seatSelChunk=null; } else { seatSel=id; seatSelChunk=ci; } renderSeats(); }
+// 手動で置く対象のメンバー番号（組を選んでいればその組、選んでいなければ空きのある最初の組）
+function manualTarget(a){
+  const parts=planParts(a); const empty=p=>p.idx.some(i=>!(a.seats||[])[i]);
+  let p = seatSelChunk!=null ? parts.find(x=>x.ci===seatSelChunk) : null;
+  if(!p) p = parts.length>1 ? (parts.find(empty)||parts[0]) : {idx:membersOf(a).map((m,i)=>i), together:true, ci:null};
+  return p;
+}
 async function seatClick(bn,rno,n){
   const {b,r,s}=findSeat(bn,rno,n); if(!s) return; const id=seatIdOf(b,r,s); const o=seatOcc().get(id);
   if(seatEdit){ openSeatEdit(bn,rno,n); return; }
@@ -1021,10 +1037,12 @@ async function seatClick(bn,rno,n){
   if(k>=0){ sel.seats[k]=null; }
   else {
     if(s.st==="off"){ notify("使用不可の席です"); return; }
-    const n=headcount(sel); let slot=-1; for(let i=0;i<n;i++) if(!sel.seats[i]){ slot=i; break; }
-    if(slot<0){ notify(`${sel.name}様は人数分（${n}席）割り当て済みです。先にどれかの席をタップして外してください。`); return; }
+    const tg=manualTarget(sel); const slot=tg.idx.find(i=>!sel.seats[i]);
+    if(slot==null){ notify(tg.ci!=null&&planParts(sel).length>1?`${CHUNK_NAMES[tg.ci]}組は全員置き済みです。ほかの組を選ぶか、席をタップして外してください。`:`${sel.name}様は人数分（${headcount(sel)}席）割り当て済みです。先にどれかの席をタップして外してください。`); return; }
     sel.seatFixed=true;   // 手動で置いた人は自動配席のやり直しで動かさない
-    if(seatCount(sel)===0 && n>1){ placeGroupAt(sel,id); return; }
+    // 連席の組でまだ誰も置いていなければ、タップした席からその組をまとめて並べる
+    if(tg.together && tg.idx.length>1 && tg.idx.every(i=>!sel.seats[i])){ placeGroupAt(sel,id,tg.idx); return; }
+    while(sel.seats.length<headcount(sel)) sel.seats.push(null);
     sel.seats[slot]=id;
   }
   save(); renderSeats();
@@ -1095,8 +1113,9 @@ async function clearSeats(){ const f=eventApps().filter(a=>a.seatFixed&&seatCoun
 📌固定の ${f}件（手動で配席した人）も解除されます。固定を残したいときは「自動配席」でやり直してください。`:""}`)) return;
   for(const a of eventApps()){ a.seats=[]; a.seatFixed=false; } seatSel=null; save(); renderSeats(); }
 // まだ席のない人：タップした席から、その列の続きの空席にグループ全員をまとめて置く
-function placeGroupAt(a,id){
-  const all=allSeats(curEvent()); const occ=seatOcc(); const t=all.find(x=>x.id===id); const n=headcount(a);
+function placeGroupAt(a,id,idxs){
+  idxs=idxs||membersOf(a).map((m,i)=>i);
+  const all=allSeats(curEvent()); const occ=seatOcc(); const t=all.find(x=>x.id===id); const n=idxs.length;
   const row=all.filter(x=>x.block===t.block&&x.row===t.row).sort((p,q)=>p.col-q.col);
   const ok=x=>x.st!=="off" && !occ.get(x.id);
   let lo=row.indexOf(t), hi=lo;
@@ -1105,7 +1124,9 @@ function placeGroupAt(a,id){
   const run=row.slice(lo,hi+1), p=run.indexOf(t), k=Math.min(n,run.length);
   let st; if(run.length-1-p>=k-1) st=p; else if(p>=k-1) st=p-k+1; else st=Math.max(0,Math.min(p,run.length-k));
   const win=run.slice(st,st+k).sort((x,y)=>Math.abs(x.col-t.col)-Math.abs(y.col-t.col));   // タップした席＝代表者、近い順に同伴者
-  a.seats=Array.from({length:n},(_,i)=>win[i]?win[i].id:null);
+  const cur=Array.from({length:headcount(a)},(_,i)=>(a.seats||[])[i]||null);
+  idxs.forEach((mi,k2)=>{ if(win[k2]) cur[mi]=win[k2].id; });   // 対象の組のメンバーだけ置く（ほかの組の席はそのまま）
+  a.seats=cur;
   save(); renderSeats();
   if(k<n) notify(`この列の続きの空席は ${k}席 だったので、${a.name}様のグループのうち ${k}名を置きました。
 残り ${n-k}名は、続けて空席をタップして置いてください。`);
@@ -1259,15 +1280,16 @@ function nextSeatNo(r){ const ns=r.seats.map(s=>parseInt(s.n)).filter(n=>!isNaN(
 async function addSeat(bn,rno,side){
   const {b,r}=findSeat(bn,rno,null); const xs=r.seats.map(s=>s.x);
   const x = side==="left" ? (xs.length?Math.max(...xs)+1:0) : (xs.length?Math.min(...xs)-1:0);
-  const numeric=r.seats.every(s=>/^\d+$/.test(String(s.n)));
-  if(side==="right" && numeric && r.seats.length && await ask(`右端（1番側）に席を足します。
-［OK］この列を右端から1番に振り直す（配席も付け替えます）
-［キャンセル］振り直さず ${nextSeatNo(r)}番 として足す`)){
-    const map=new Map(); for(const q of r.seats){ const old=seatIdOf(b,r,q); q.n=String(Number(q.n)+1); map.set(old,seatIdOf(b,r,q)); }
-    for(const a of eventApps()) if(a.seats) a.seats=a.seats.map(id=>map.get(id)||id);
-    r.seats.push({n:"1", x});
-  } else r.seats.push({n:nextSeatNo(r), x});
-  save(); renderSeats();
+  // 今ある席の番号は一切変えず、新しい席の番号だけ決める（左端＝続きの番号、右端＝1番側の空き番号）
+  const nums=r.seats.map(q=>parseInt(q.n)).filter(v=>!isNaN(v));
+  let def; if(side==="left") def=String(nums.length?Math.max(...nums)+1:1);
+  else { const mn=nums.length?Math.min(...nums):1; def=mn>1?String(mn-1):"0"; }
+  const v=await askText(`${bn}ブロック${rno}列の${side==="left"?"左端":"右端"}に席を1つ足します。
+新しい席の番号を入れてください（今ある席の番号は変わりません）。`, def);
+  if(v==null) return; const n=String(v).normalize("NFKC").trim();
+  if(!n){ notify("番号を入れてください"); return; }
+  if(r.seats.some(q=>String(q.n)===n)){ notify(`${n}番はこの列にすでにあります。別の番号にしてください。`); return; }
+  r.seats.push({n, x}); save(); renderSeats();
 }
 async function removeSeat(bn,rno,side){
   const {b,r}=findSeat(bn,rno,null); if(!r.seats.length) return;
