@@ -37,6 +37,7 @@ button.btn{background:var(--accent);color:#fff;border:none;border-radius:10px;pa
 .mem.done{color:var(--ok)} .mem.done .ckb{background:var(--ok);border-color:var(--ok);color:#fff}
 .mem.hit{background:#fff4d6;border-radius:6px}
 a{color:var(--accent-deep)}
+a.tel{display:inline-block;margin-top:2px;font-size:14px;font-weight:700;color:var(--info);text-decoration:none;border:1px solid var(--info-soft);background:var(--info-soft);border-radius:8px;padding:2px 8px}
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#3a2e35;color:#fff;padding:9px 16px;border-radius:99px;font-size:13px;display:none;z-index:50}
 .ov{position:fixed;inset:0;background:rgba(40,20,30,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:60}
 .dlg{background:#fff;border-radius:14px;padding:18px;max-width:380px;width:100%}
@@ -96,6 +97,8 @@ function groups(){
    .sort((a,b)=>kanaKey(a.kana||a.name).localeCompare(kanaKey(b.kana||b.name),"ja"));
 }
 // 同じブロック・列の連番はまとめて「C-1-1〜10」
+function telHtml(p){ const d=String(p||"").replace(/[^\d+]/g,""); if(!d) return ""; const f=d.length===11?`${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`:d;   // 固定電話は市外局番の桁がまちまちなのでそのまま
+  return `<a class="tel" href="tel:${d}" onclick="event.stopPropagation()">📞 ${f}</a>`; }
 function seatsText(mem){
   const ps=mem.map(m=>m.seat).filter(Boolean).map(id=>{ const m=String(id).match(/^(.+)-(\d+)-(\d+)$/); return m?{k:m[1]+"-"+m[2],n:+m[3]}:{k:id,n:null}; });
   const g=new Map(); for(const p of ps){ if(!g.has(p.k)) g.set(p.k,[]); g.get(p.k).push(p.n); }
@@ -120,6 +123,7 @@ function render(){
     return `<div class="item ${full?"done":part?"part":""}"><div style="flex:1;min-width:0">
       <div class="nm">${esc(g.name)}<span style="font-weight:400;font-size:13px">様</span> ${g.n>1?`<span class="tag ${full?"ok":part?"warn":"info"}">${g.done}/${g.n}名</span>`:""}</div>
       <div class="sub">${esc(g.kana)}${seatsText(g.mem)?` ／ 💺${esc(seatsText(g.mem))}`:""}</div>
+      ${g.phone?`<div>${telHtml(g.phone)}</div>`:""}
       <div>${g.visitor?`<span class="tag vis">ご見学 ${esc(g.affiliation)}</span>`:""}${g.unpaid?`<span class="tag ng">未入金</span>`:""}${g.perks.map(p=>`<span class="tag perk">★${p}名以上特典</span>`).join("")}${g.mem.filter(m=>m.prevWin).map(m=>`<span class="tag warn">🎁前回当選：${esc(m.name)}様</span>`).join("")}</div>
       ${g.n>1?`<a href="#" class="muted" onclick="tog('${g.id}');return false">${op?"▲ 閉じる":"▼ 1人ずつ受付（別々にご来場の場合）"}</a>`:""}</div>${btn}</div>
       ${op?`<div class="mems">${g.mem.map(m=>`<div class="mem ${m.done?"done":""} ${hit(m)?"hit":""}"><span style="flex:1">${m.i===0?"👑 ":""}${esc(m.name)}様 <span class="muted">${esc(m.kana)}${m.seat?" 💺"+esc(m.seat):""}</span></span>
