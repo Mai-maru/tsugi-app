@@ -2769,17 +2769,33 @@ function openSeatSheetDialog(){
   const url=URL.createObjectURL(_sheetBlob);
   let canShare=false;
   try{ canShare=!!(navigator.canShare && navigator.canShare({files:[sheetFile()]})); }catch(e){}
+  const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||!!(navigator.userAgentData&&navigator.userAgentData.mobile);
+  const canCopy=!!(navigator.clipboard&&navigator.clipboard.write&&window.ClipboardItem);
+  // スマホ=共有シート（写真に保存/LINE）、PC=画像コピー→LINEに貼り付けが確実
+  const btns=[];
+  if(isMobile&&canShare) btns.push(`<button class="btn" onclick="shareSeatSheet()">📤 写真に保存・LINEで共有</button>`);
+  if(!isMobile&&canCopy) btns.push(`<button class="btn" id="sheetCopyBtn" onclick="copySeatSheet()">📋 画像をコピー（LINE貼り付け用）</button>`);
+  btns.push(`<button class="btn ${btns.length?"sub":""}" onclick="downloadSeatSheet()">⬇ ファイルとして保存</button>`);
+  if(!isMobile&&canShare) btns.push(`<button class="btn ghost" onclick="shareSeatSheet()">📤 その他の共有</button>`);
+  const hint=isMobile&&canShare
+    ?"「📤」を押して<b>「画像を保存」</b>を選ぶとスマホの写真アプリに入ります。そのままLINEで送ることもできます。"
+    :(canCopy?"PCからLINEに送るには<b>「📋 画像をコピー」→LINEのトーク欄でCtrl+V→送信</b>がいちばん確実です。":"")
+      +"スマホでWeb版から開くと、写真アプリへの保存・LINE共有ボタンが使えます。";
   showDialog("配席表のできあがり 🎫", `
-    <div class="flex" style="flex-wrap:wrap;margin-bottom:8px">
-      ${canShare?`<button class="btn" onclick="shareSeatSheet()">📤 写真に保存・LINEで共有</button>`:""}
-      <button class="btn ${canShare?"sub":""}" onclick="downloadSeatSheet()">⬇ ファイルとして保存</button>
-    </div>
-    <p class="muted" style="margin:0 0 10px">${canShare
-      ?"「📤」を押して<b>「画像を保存」</b>を選ぶとスマホの写真アプリに入ります。そのままLINEで送ることもできます。"
-      :"スマホでWeb版から開くと、写真アプリへの保存・LINE共有ボタンが使えます。"}<br>
+    <div class="flex" style="flex-wrap:wrap;margin-bottom:8px">${btns.join("")}</div>
+    <p class="muted" style="margin:0 0 10px">${hint}<br>
       下のプレビュー画像を長押し（PCは右クリック）して保存もできます。</p>
     <img src="${url}" alt="${esc(_sheetName)}" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#fff">
   `);
+}
+async function copySeatSheet(){
+  const btn=document.getElementById("sheetCopyBtn");
+  try{
+    await navigator.clipboard.write([new ClipboardItem({"image/png":_sheetBlob})]);
+    if(btn){ btn.textContent="✓ コピーしました！LINEのトークで Ctrl+V"; }
+  }catch(e){
+    alert("コピーできませんでした。「⬇ ファイルとして保存」して、保存したファイルをLINEのトーク画面にドラッグ＆ドロップしてください。");
+  }
 }
 async function shareSeatSheet(){
   try{
