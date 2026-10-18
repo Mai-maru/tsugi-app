@@ -1924,6 +1924,7 @@ function saveApp(id){
 /* ================= 振り分け ================= */
 let allocSelPerf=null;              // 詳細表示中の回
 let allocChecked=new Set();         // 一括対象としてチェックした回
+let allocPoolFilter="all";          // 申込者一覧の枠フィルタ: all / g(一般) / s(総見)
 const ST_SHORT={pending:"未", proposed:"案○", proposedNg:"案×", ok:"○", ng:"×", transfer:"振替中", transferred:"振替", refund:"返金", refunded:"返金済"};
 function allocShow(){ return DB.shows.find(s=>s.id===document.getElementById("allocShowSel").value); }
 function entriesOfPerf(show, perfId, pool){
@@ -2170,13 +2171,18 @@ function renderAlloc(){
 
 function allocDetailHtml(show,p){
   const cap=Number(p.capacity)||0;
-  const list=entriesOfPerf(show,p.id).map(x=>{
+  const hasSoken=!!sokenOf(p);
+  let list=entriesOfPerf(show,p.id).map(x=>{
     const person=DB.people.find(pp=>pp.id===x.app.personId);
     x.bb=bdayBonus(person,p);
     x.pb=premiereBonus(person,p,show);
     x.score=scoreOf(x.app.personId,x.app)+x.bb+x.pb;
     return x;
-  }).sort((a,b)=>{
+  });
+  // 枠フィルタ（総見のある回のみ。振替受入は一般枠として扱う）
+  if(hasSoken && allocPoolFilter!=="all")
+    list=list.filter(x=>allocPoolFilter==="s" ? (x.en.soken&&!x.viaTransfer) : (!x.en.soken||x.viaTransfer));
+  list.sort((a,b)=>{
     const rank={ok:0,transferred:0,proposed:1,transfer:2,pending:3,proposedNg:4,ng:5,refund:6,refunded:6};
     return (rank[a.en.status]??3)-(rank[b.en.status]??3) || b.score-a.score;
   });
@@ -2212,6 +2218,9 @@ function allocDetailHtml(show,p){
       else if(en.status==="transfer") actions=b("✓ 振替確定",`openTransferDialog(${idArg})`,"sub")+b("↩ 取消",`setEntryStatus(${idArg},'ng')`);
       else if(en.status==="refund"||en.status==="refunded") actions=`<span class="muted">返金タブで管理</span> `+b("↩",`setEntryStatus(${idArg},'ng')`);
     }
+    // 枠の移動（総見⇄一般）：枠超過時の融通用。振替系・返金系以外で表示
+    const canMove=!viaTransfer && !["transfer","transferred","refund","refunded"].includes(en.status) && (en.soken || sokenOf(p));
+    if(canMove) actions+=`<button class="btn mini ghost" title="一般枠と総見枠の間で移動します（枠が足りないときの融通用）" onclick="moveEntryPool('${app.id}','${en.id}')">⇄${en.soken?"一般へ":"🎌総見へ"}</button>`;
     const countEditable=!viaTransfer && !["transferred","refund","refunded"].includes(en.status);
     const origNote=(en.origCount!=null&&Number(en.origCount)!==Number(en.count))?`<br><span class="muted" style="font-size:10.5px">申込${en.origCount}枚→</span>`:"";
     const rowChk=viaTransfer?"":`<input type="checkbox" class="chk alloc-row-chk" data-app="${app.id}" data-en="${en.id}">`;
@@ -2237,6 +2246,11 @@ function allocDetailHtml(show,p){
     <div class="spread">
       <h3 style="margin:0">📋 ${perfLabel(p)} ${prem?`<span class="tag" style="background:#f5e6f0;color:#a4456e">🎀${prem}</span>`:""} の申込者（優先順）</h3>
       <div class="flex no-print">
+        ${hasSoken?`<select onchange="allocPoolFilter=this.value;renderAlloc()" style="width:auto" title="一般席と総見席を分けて表示">
+          <option value="all" ${allocPoolFilter==="all"?"selected":""}>全体（一般＋総見）</option>
+          <option value="g" ${allocPoolFilter==="g"?"selected":""}>一般席のみ</option>
+          <option value="s" ${allocPoolFilter==="s"?"selected":""}>🎌${esc(sokenOf(p).name)}のみ</option>
+        </select>`:""}
         ${classesOfPerf(p)?`<button class="btn sub" onclick="openClassAllocDialog('${p.id}')">🎟 席種の割当</button>`:""}
         ${classesOfPerf(p,"s")?`<button class="btn sub" style="background:#4a7a54" onclick="openClassAllocDialog('${p.id}','s')">🎌 総見の席種割当</button>`:""}
         ${hasProposal?`<button class="btn" onclick="confirmProposals('${p.id}')">この回の案をすべて確定する</button>`:""}
@@ -2347,6 +2361,22 @@ function reduceToOne(appId,enId){
   en.count=1;
   en.status="ok";
   if(en.classAlloc && Object.values(en.classAlloc).reduce((s,x)=>s+Number(x),0)!==1) en.classAlloc=null;
+  rerender();
+}
+// 一般枠⇄総見枠の移動（総見が超過して一般に空きがある場合などの融通用）
+function moveEntryPool(appId,enId){
+  const {app,en}=findEntry(appId,enId);
+  const show=showOf(app);
+  const p=findPerf(show,en.perfId);
+  const toSoken=!en.soken;
+  if(toSoken && !sokenOf(p)){ alert("この回には総見枠がありません。先に公演タブの🎌ボタンで総見を設定してください。"); return; }
+  const dupe=app.entries.find(e=>e!==en && e.perfId===en.perfId && !!e.soken===toSoken);
+  if(dupe){ alert(`${personName(app)}様は同じ回の${toSoken?"総見枠":"一般枠"}にも申込があるため移動できません。\n先にどちらかの行を削除するか枚数をまとめてください。`); return; }
+  const label=toSoken?`🎌${sokenOf(p).name}枠`:"一般枠";
+  if(!confirm(`${personName(app)}様（${perfShort(p)}・${en.count}枚・${ST_LABEL[en.status]||en.status}）を ${label} へ移しますか？`)) return;
+  if(en.status==="ok" && !capWarn(show,en.perfId,Number(en.count),toSoken)) return;
+  if(toSoken) en.soken=true; else delete en.soken;
+  if(en.classAlloc){ en.classAlloc=null; alert("席種割当は枠ごとの内訳が異なるためリセットしました。必要なら割当し直してください。"); }
   rerender();
 }
 function confirmProposals(perfId){
@@ -2635,7 +2665,7 @@ function buildSeatSVG(theater, floorIdx, state){
 }
 
 /* ================= 配席タブ ================= */
-let seatMode="held", seatSelEntry=null, seatFloorIdx=0, seatZoom=1;
+let seatMode="held", seatSelEntry=null, seatFloorIdx=0, seatZoom=1, seatPoolFilter="all";
 function seatShow(){ return DB.shows.find(s=>s.id===document.getElementById("seatShowSel").value); }
 function seatPerf(){
   const show=seatShow(); if(!show) return null;
@@ -2672,9 +2702,13 @@ function renderSeatTab(){
   const entries=seatEntriesOf(show,perf);
   const names={};
   for(const {app,en} of entries) names[en.id]=personName(app);
+  // 枠フィルタ（右の観劇者リストのみ。座席図の表示はそのまま）
+  const listEntries=sokenOf(perf)&&seatPoolFilter!=="all"
+    ? entries.filter(x=>seatPoolFilter==="s"?x.en.soken:!x.en.soken)
+    : entries;
   // 割当済み枚数
   const assignedCount=enId=>Object.values(perf.seatAssign).filter(v=>v===enId).length;
-  const entryList=entries.map(({app,en})=>{
+  const entryList=listEntries.map(({app,en})=>{
     const need=Number(en.count), got=assignedCount(en.id);
     const keys=Object.entries(perf.seatAssign).filter(([k,v])=>v===en.id).map(([k])=>k);
     const seatsTxt=keys.map(k=>seatLabelOf(theater,k)).join("、");
@@ -2721,6 +2755,11 @@ function renderSeatTab(){
       <div class="seatmap-wrap grow" id="seatmapHost">${buildSeatSVG(theater,seatFloorIdx,{held:new Set(perf.heldSeats),assign:perf.seatAssign,names,selectable:seatMode,zoom:seatZoom})}</div>
       <div style="width:250px;flex-shrink:0">
         <p style="font-weight:700;margin-bottom:6px">この回の観劇者（優先順）</p>
+        ${sokenOf(perf)?`<select class="no-print" onchange="seatPoolFilter=this.value;renderSeatTab()" style="width:100%;margin-bottom:8px" title="一般席と総見席を分けて表示">
+          <option value="all" ${seatPoolFilter==="all"?"selected":""}>全体（一般＋総見）</option>
+          <option value="g" ${seatPoolFilter==="g"?"selected":""}>一般席のみ</option>
+          <option value="s" ${seatPoolFilter==="s"?"selected":""}>🎌${esc(sokenOf(perf).name)}のみ</option>
+        </select>`:""}
         <div style="display:flex;flex-direction:column;gap:8px;max-height:560px;overflow-y:auto">${entryList||"<span class='muted'>確定者がまだいません。振り分けタブで確定してください。</span>"}</div>
       </div>
     </div>
