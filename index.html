@@ -2728,6 +2728,12 @@ function renderSeatTab(){
       <h3 style="margin:0">🎫 ${perfLabel(perf)} <span class="muted">${esc(theater.name)}</span></h3>
       <div class="flex">
         ${theater.floors.length>1?theater.floors.map((f,i)=>`<button class="btn mini ${i===seatFloorIdx?"":"ghost"}" onclick="seatFloorIdx=${i};renderSeatTab()">${esc(f.name)}</button>`).join(""):""}
+        ${sokenOf(perf)?`<span class="muted" style="margin-left:8px">観劇者:</span>
+        <select onchange="seatPoolFilter=this.value;renderSeatTab()" style="width:auto" title="右の観劇者リストを一般席/総見席で切り替えます">
+          <option value="all" ${seatPoolFilter==="all"?"selected":""}>全体（一般＋総見）</option>
+          <option value="g" ${seatPoolFilter==="g"?"selected":""}>一般席のみ</option>
+          <option value="s" ${seatPoolFilter==="s"?"selected":""}>🎌${esc(sokenOf(perf).name)}のみ</option>
+        </select>`:""}
         <span class="muted" style="margin-left:8px">表示:</span>
         ${[[1,"全体"],[1.6,"160%"],[2.4,"240%"]].map(([z,lab])=>`<button class="btn mini ${seatZoom===z?"":"ghost"}" onclick="seatZoom=${z};renderSeatTab()">${lab}</button>`).join("")}
         <button class="btn mini gold" style="margin-left:8px" onclick="exportSeatSheet()">📷 配席表を画像で保存</button>
@@ -2754,13 +2760,8 @@ function renderSeatTab(){
     <div class="flex" style="align-items:flex-start">
       <div class="seatmap-wrap grow" id="seatmapHost">${buildSeatSVG(theater,seatFloorIdx,{held:new Set(perf.heldSeats),assign:perf.seatAssign,names,selectable:seatMode,zoom:seatZoom})}</div>
       <div style="width:250px;flex-shrink:0">
-        <p style="font-weight:700;margin-bottom:6px">この回の観劇者（優先順）</p>
-        ${sokenOf(perf)?`<select class="no-print" onchange="seatPoolFilter=this.value;renderSeatTab()" style="width:100%;margin-bottom:8px" title="一般席と総見席を分けて表示">
-          <option value="all" ${seatPoolFilter==="all"?"selected":""}>全体（一般＋総見）</option>
-          <option value="g" ${seatPoolFilter==="g"?"selected":""}>一般席のみ</option>
-          <option value="s" ${seatPoolFilter==="s"?"selected":""}>🎌${esc(sokenOf(perf).name)}のみ</option>
-        </select>`:""}
-        <div style="display:flex;flex-direction:column;gap:8px;max-height:560px;overflow-y:auto">${entryList||"<span class='muted'>確定者がまだいません。振り分けタブで確定してください。</span>"}</div>
+        <p style="font-weight:700;margin-bottom:6px">この回の観劇者（優先順）${sokenOf(perf)&&seatPoolFilter!=="all"?`<br><span class="tag" style="background:${seatPoolFilter==="s"?"#e8f0e4;color:#2e6b3a":"#f5e6f0;color:#a4456e"}">${seatPoolFilter==="s"?"🎌"+esc(sokenOf(perf).name):"一般席"}のみ表示中</span>`:""}</p>
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:560px;overflow-y:auto">${entryList||"<span class='muted'>"+(sokenOf(perf)&&seatPoolFilter!=="all"?"この枠の確定者がまだいません。":"確定者がまだいません。振り分けタブで確定してください。")+"</span>"}</div>
       </div>
     </div>
     <p class="muted" style="margin-top:8px">
