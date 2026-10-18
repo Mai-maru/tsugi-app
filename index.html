@@ -698,7 +698,7 @@ function renderDash(){
       else if(["ng","refund","refunded"].includes(en.status)) ngc++;
       else pend++;
     }
-    const capTotal=perfs.reduce((s,p)=>s+(Number(p.capacity)||0),0);
+    const capTotal=perfs.reduce((s,p)=>s+(Number(p.capacity)||0)+(sokenCapOf(p)||0),0);
     html+=`<div class="card"><div class="spread"><h3 style="margin:0">🎭 ${esc(show.title)} <span class="muted">${esc(theaterOf(show)?.name||"")}・全${perfs.length}回</span></h3>
       <span class="muted">付与枚数合計 ${capTotal||"未定"}枚</span></div>
       <div class="flex" style="margin-top:8px">
@@ -1109,13 +1109,16 @@ function renderShows(){
         </tr>`;
       }
       const hasClasses=!!theaterClasses(th);
-      const capCell=hasClasses
-        ? `<td style="width:150px"><b>${p.capacity??"未定"}</b>${p.capacity!=null?"枚":""}
-             ${p.classCaps?`<br><span class="muted" style="font-size:11px">${esc(Object.entries(p.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}</span>`:""}
-             <br><button class="btn mini ghost no-print" onclick="openCapDialog('${show.id}','${p.id}')">✎ 席種別に入力</button></td>`
-        : `<td style="width:110px"><input type="number" value="${p.capacity??""}" placeholder="未定" min="0"
-             onchange="setCapacity('${show.id}','${p.id}',this.value)" style="width:90px"> 枚</td>`;
       const sk=sokenOf(p);
+      // 総見枠は一般と別勘定。付与枚数欄には「一般＋🎌総見＝計」で合算を見せる
+      const skCap=sokenCapOf(p);
+      const skSum=sk?`<br><span style="font-size:11px;color:#2e6b3a">一般${p.capacity??"未定"}${p.capacity!=null?"枚":""} ＋ 🎌${skCap??"未定"}${skCap!=null?"枚":""}${p.capacity!=null&&skCap!=null?` ＝ <b>計${(Number(p.capacity)||0)+skCap}枚</b>`:""}</span>`:"";
+      const capCell=hasClasses
+        ? `<td style="width:170px"><b>${p.capacity??"未定"}</b>${p.capacity!=null?"枚":""}
+             ${p.classCaps?`<br><span class="muted" style="font-size:11px">${esc(Object.entries(p.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}</span>`:""}${skSum}
+             <br><button class="btn mini ghost no-print" onclick="openCapDialog('${show.id}','${p.id}')">✎ 席種別に入力${sk?"(一般)":""}</button></td>`
+        : `<td style="width:130px"><input type="number" value="${p.capacity??""}" placeholder="未定" min="0"
+             onchange="setCapacity('${show.id}','${p.id}',this.value)" style="width:90px"> 枚${skSum}</td>`;
       const sokenLine=sk?`<br><span class="tag" style="background:#e8f0e4;color:#2e6b3a">🎌${esc(sk.name)}</span>
         <span class="muted" style="font-size:11px">付与${sk.capacity??"未定"}${sk.capacity!=null?"枚":""}${sk.classCaps?`（${esc(Object.entries(sk.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}）`:""}
         ／ 申込${appCount(p.id,true)}枚 ／ 確定${okCount(p.id,true)}枚</span>`:"";
@@ -1170,8 +1173,9 @@ function openCapDialog(showId,perfId){
   const p=findPerf(show,perfId);
   const classes=theaterClasses(theaterOf(show));
   if(!classes){ alert("この劇場は一律料金のため、枚数欄に直接入力してください"); return; }
-  showDialog(`付与枚数（席種別） ─ ${perfLabel(p)}`, `
+  showDialog(`付与枚数（席種別${sokenOf(p)?"・一般枠":""}） ─ ${perfLabel(p)}`, `
     <p class="muted">劇団から割り当てられた枚数を席種ごとに入力してください。公演途中でチケットが追加されたときも、ここで該当の席種に加算すればOKです（合計・振り分け・席種割当の枠すべてに反映されます）。</p>
+    ${sokenOf(p)?`<p class="notice info">この回には 🎌${esc(sokenOf(p).name)} があります。<b>ここは一般枠の枚数だけ</b>を入力してください。総見枠の枚数は一覧の「🎌」ボタンから別に入力します（2つの枠は別勘定で、付与枚数欄に「一般＋🎌＝計」と表示されます）。</p>`:""}
     <div class="row">
       ${classes.map(([cls])=>`<div><label class="fld">${cls}席</label>
         <input type="number" class="capd-in" data-cls="${cls}" min="0" value="${p.classCaps?.[cls]??""}"
@@ -2699,7 +2703,10 @@ function renderSeatTab(){
     <div class="flex no-print" style="margin:10px 0">
       <button class="btn mini ${seatMode==="held"?"":"ghost"}" onclick="seatMode='held';seatSelEntry=null;renderSeatTab()">① 持ちチケットの席を入力</button>
       <button class="btn mini ${seatMode==="assign"?"":"ghost"}" onclick="seatMode='assign';renderSeatTab()">② 観劇者に割り当て</button>
-      <span class="muted">持ちチケット ${heldN}枚${perf.capacity!=null?`（付与予定 ${perf.capacity}枚）`:""} ／ 割当済み ${assignedN}枚</span>
+      <span class="muted">持ちチケット ${heldN}枚${(()=>{const sc=sokenCapOf(perf);
+        if(perf.capacity==null&&sc==null) return "";
+        if(sc==null) return `（付与予定 ${perf.capacity}枚）`;
+        return `（付与予定 一般${perf.capacity??"未定"}${perf.capacity!=null?"枚":""}＋🎌${sc}枚${perf.capacity!=null?`＝計${Number(perf.capacity)+sc}枚`:""}）`;})()} ／ 割当済み ${assignedN}枚</span>
     </div>
     ${seatMode==="held"?`
       <div class="notice info no-print">座席図をクリックすると「持ちチケット（黄色）」として登録/解除されます。まとめて入力する場合：
