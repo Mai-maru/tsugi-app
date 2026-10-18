@@ -1118,7 +1118,7 @@ function renderShows(){
       const capCell=hasClasses
         ? `<td style="width:170px"><b>${p.capacity??"未定"}</b>${p.capacity!=null?"枚":""}
              ${p.classCaps?`<br><span class="muted" style="font-size:11px">${esc(Object.entries(p.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}</span>`:""}${skSum}
-             <br><button class="btn mini ghost no-print" onclick="openCapDialog('${show.id}','${p.id}')">✎ 席種別に入力${sk?"(一般)":""}</button></td>`
+             <br><button class="btn mini ghost no-print" onclick="openCapDialog('${show.id}','${p.id}')">✎ 席種別に入力${sk?"（一般＋総見）":""}</button></td>`
         : `<td style="width:130px"><input type="number" value="${p.capacity??""}" placeholder="未定" min="0"
              onchange="setCapacity('${show.id}','${p.id}',this.value)" style="width:90px"> 枚${skSum}</td>`;
       const sokenLine=sk?`<br><span class="tag" style="background:#e8f0e4;color:#2e6b3a">🎌${esc(sk.name)}</span>
@@ -1131,7 +1131,7 @@ function renderShows(){
             <div class="bar" style="max-width:180px"><i style="width:${cap?Math.min(dem/cap*100,100):0}%;background:${dem>cap?"var(--ng)":"var(--ok)"}"></i></div></td>
         <td>確定 ${ok}枚</td>
         <td class="no-print" style="white-space:nowrap">
-          <button class="btn mini ghost" title="総見の設定（会総見・組総見・フラワーフェス等）" onclick="openSokenDialog('${show.id}','${p.id}')">🎌</button>
+          <button class="btn mini ghost" title="総見名の設定（会総見・組総見・フラワーフェス等）。枚数は「✎席種別に入力」で" onclick="openSokenDialog('${show.id}','${p.id}')">🎌</button>
           <button class="btn mini ghost" title="取次不可にする" onclick="toggleBlocked('${show.id}','${p.id}')">🚫</button>
           <button class="btn mini danger" onclick="deletePerf('${show.id}','${p.id}')">削除</button></td>
       </tr>`;
@@ -1175,43 +1175,65 @@ function openCapDialog(showId,perfId){
   const p=findPerf(show,perfId);
   const classes=theaterClasses(theaterOf(show));
   if(!classes){ alert("この劇場は一律料金のため、枚数欄に直接入力してください"); return; }
-  showDialog(`付与枚数（席種別${sokenOf(p)?"・一般枠":""}） ─ ${perfLabel(p)}`, `
+  const sk=sokenOf(p);
+  const section=(pool,label,caps)=>`
+    <div style="margin-top:6px">
+      <label class="fld" style="font-weight:700;font-size:13px">${label}</label>
+      <div class="row">
+        ${classes.map(([cls])=>`<div><label class="fld">${cls}席</label>
+          <input type="number" class="capd-in" data-pool="${pool}" data-cls="${cls}" min="0" value="${caps?.[cls]??""}"
+            style="width:72px" oninput="capdTotal()"></div>`).join("")}
+        <div><label class="fld">合計</label><div id="capd-total-${pool}" class="big" style="padding:6px 2px">—</div></div>
+      </div>
+    </div>`;
+  showDialog(`付与枚数（席種別） ─ ${perfLabel(p)}`, `
     <p class="muted">劇団から割り当てられた枚数を席種ごとに入力してください。公演途中でチケットが追加されたときも、ここで該当の席種に加算すればOKです（合計・振り分け・席種割当の枠すべてに反映されます）。</p>
-    ${sokenOf(p)?`<p class="notice info">この回には 🎌${esc(sokenOf(p).name)} があります。<b>ここは一般枠の枚数だけ</b>を入力してください。総見枠の枚数は一覧の「🎌」ボタンから別に入力します（2つの枠は別勘定で、付与枚数欄に「一般＋🎌＝計」と表示されます）。</p>`:""}
-    <div class="row">
-      ${classes.map(([cls])=>`<div><label class="fld">${cls}席</label>
-        <input type="number" class="capd-in" data-cls="${cls}" min="0" value="${p.classCaps?.[cls]??""}"
-          style="width:80px" oninput="capdTotal()"></div>`).join("")}
-      <div><label class="fld">合計</label><div id="capd-total" class="big" style="padding:6px 2px">${p.capacity??"—"}</div></div>
-    </div>
+    ${section("g", sk?"🎫 一般席":"席種ごとの枚数", p.classCaps)}
+    ${sk?section("s", `🎌 ${esc(sk.name)}席`, sk.classCaps):""}
+    ${sk?`<p class="muted">※一般席と総見席は別枠として管理されます（付与枚数欄に「一般＋🎌＝計」と表示）。総見名は一覧の🎌ボタンで設定します。</p>`:""}
     ${p.note?`<p class="muted">現在のメモ：${esc(p.note)}</p>`:""}
     <div class="flex" style="margin-top:14px;justify-content:flex-end">
       <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
       <button class="btn" onclick="saveCapDialog('${showId}','${perfId}')">保存</button>
-    </div>`);
+    </div>`, ()=>capdTotal());
 }
 function capdTotal(){
-  let t=0, any=false;
-  document.querySelectorAll("#dlg .capd-in").forEach(i=>{ const v=Number(i.value); if(i.value!==""&&v>=0){ t+=v; any=true; } });
-  document.getElementById("capd-total").textContent=any?t+"枚":"—";
+  for(const pool of ["g","s"]){
+    const el=document.getElementById("capd-total-"+pool);
+    if(!el) continue;
+    let t=0, any=false;
+    document.querySelectorAll(`#dlg .capd-in[data-pool="${pool}"]`).forEach(i=>{ const v=Number(i.value); if(i.value!==""&&v>=0){ t+=v; any=true; } });
+    el.textContent=any?t+"枚":"—";
+  }
 }
 function saveCapDialog(showId,perfId){
   const show=DB.shows.find(s=>s.id===showId);
   const p=findPerf(show,perfId);
-  const cc={}; let any=false;
-  document.querySelectorAll("#dlg .capd-in").forEach(i=>{
-    const v=Number(i.value);
-    if(i.value!==""&&v>0){ cc[i.dataset.cls]=v; any=true; }
-  });
-  if(any){
-    p.classCaps=cc;
-    p.capacity=Object.values(cc).reduce((s,n)=>s+n,0);
-    const breakdown=Object.entries(cc).map(([c,n])=>`${c}${n}`).join("・");
+  const collect=pool=>{
+    const cc={}; let any=false;
+    document.querySelectorAll(`#dlg .capd-in[data-pool="${pool}"]`).forEach(i=>{
+      const v=Number(i.value);
+      if(i.value!==""&&v>0){ cc[i.dataset.cls]=v; any=true; }
+    });
+    return any?cc:null;
+  };
+  // 一般席
+  const g=collect("g");
+  if(g){
+    p.classCaps=g;
+    p.capacity=Object.values(g).reduce((s,n)=>s+n,0);
+    const breakdown=Object.entries(g).map(([c,n])=>`${c}${n}`).join("・");
     const base=(p.note||"").replace(/〔[^〕]*〕/g,"").trim();
     p.note=(base?base+" ":"")+`〔${breakdown}〕`;
   }else{
     p.classCaps=null; p.capacity=null;
     p.note=(p.note||"").replace(/〔[^〕]*〕/g,"").trim();
+  }
+  // 総見席（総見枠がある回のみ。総見名はそのまま保持し、枚数だけ更新）
+  if(sokenOf(p)){
+    const s=collect("s");
+    p.soken.classCaps=s;
+    p.soken.capacity=s?Object.values(s).reduce((a,n)=>a+n,0):null;
   }
   closeDialog(); rerender();
 }
@@ -1229,12 +1251,10 @@ function openSokenDialog(showId,perfId){
         <input type="text" id="sk_name" list="sokenNames" value="${esc(sk.name||"")}" placeholder="例：組総見">
         <datalist id="sokenNames"><option value="会総見"><option value="組総見"><option value="フラワーフェスティバル"></datalist></div>
     </div>
-    ${classes?`<label class="fld" style="margin-top:10px">総見枠の枚数（席種別）</label>
-      <div class="row">${classes.map(([cls])=>`<div><label class="fld">${cls}席</label>
-        <input type="number" class="sk-cap" data-cls="${cls}" min="0" value="${sk.classCaps?.[cls]??""}" style="width:80px"></div>`).join("")}</div>
-      <p class="muted">枚数が未定ならすべて空欄のままでOK（あとからこの画面で入力できます）。</p>`
-    :`<div class="row" style="margin-top:10px"><div><label class="fld">総見枠の枚数</label>
-        <input type="number" id="sk_cap" min="0" value="${sk.capacity??""}" style="width:100px"> 枚</div></div>`}
+    ${classes
+      ? `<p class="notice info">枚数（一般席・総見席）は、一覧の「✎ 席種別に入力」からまとめて入力します。ここでは総見名だけを設定してください。${sk.capacity!=null?`<br>現在の総見枠：${sk.capacity}枚${sk.classCaps?`（${esc(Object.entries(sk.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}）`:""}`:""}</p>`
+      : `<div class="row" style="margin-top:10px"><div><label class="fld">総見枠の枚数</label>
+          <input type="number" id="sk_cap" min="0" value="${sk.capacity??""}" style="width:100px"> 枚</div></div>`}
     <div class="flex" style="margin-top:14px;justify-content:space-between">
       <span>${sokenOf(p)?`<button class="btn mini danger" onclick="removeSoken('${showId}','${perfId}')">総見設定を解除</button>`:""}</span>
       <span class="flex">
@@ -1248,17 +1268,15 @@ function saveSokenDialog(showId,perfId){
   const p=findPerf(show,perfId);
   const name=document.getElementById("sk_name").value.trim();
   if(!name){ alert("総見名を入力してください（例：組総見）"); return; }
-  const capIns=[...document.querySelectorAll("#dlg .sk-cap")];
-  let classCaps=null, capacity=null;
-  if(capIns.length){
-    const cc={}; let any=false;
-    for(const i of capIns){ const v=Number(i.value); if(i.value!==""&&v>0){ cc[i.dataset.cls]=v; any=true; } }
-    if(any){ classCaps=cc; capacity=Object.values(cc).reduce((s,n)=>s+n,0); }
+  const prev=p.soken||{};
+  const capEl=document.getElementById("sk_cap");   // 非席種劇場のみ存在
+  if(capEl){
+    const v=capEl.value;
+    p.soken={name, capacity:v===""?null:Number(v), classCaps:null};
   }else{
-    const v=document.getElementById("sk_cap").value;
-    capacity=v===""?null:Number(v);
+    // 席種劇場：枚数は「✎席種別に入力」で管理。既存の枚数はそのまま保持
+    p.soken={name, capacity:prev.capacity??null, classCaps:prev.classCaps??null};
   }
-  p.soken={name, capacity, classCaps};
   closeDialog(); rerender();
 }
 function removeSoken(showId,perfId){
