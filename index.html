@@ -2375,7 +2375,11 @@ function moveEntryPool(appId,enId){
   const label=toSoken?`🎌${sokenOf(p).name}枠`:"一般枠";
   if(!confirm(`${personName(app)}様（${perfShort(p)}・${en.count}枚・${ST_LABEL[en.status]||en.status}）を ${label} へ移しますか？`)) return;
   if(en.status==="ok" && !capWarn(show,en.perfId,Number(en.count),toSoken)) return;
+  const wasSoken=!!en.soken;
   if(toSoken) en.soken=true; else delete en.soken;
+  // ご案内文に「当初の枠」を一言添えるため記録（元の枠に戻したら消す）
+  if(en.origSoken===undefined) en.origSoken=wasSoken;
+  else if(!!en.origSoken===!!en.soken) delete en.origSoken;
   if(en.classAlloc){ en.classAlloc=null; alert("席種割当は枠ごとの内訳が異なるためリセットしました。必要なら割当し直してください。"); }
   rerender();
 }
@@ -3293,7 +3297,7 @@ function renderMsgTab(){
   const rows=apps.map(a=>{
     const all=confirmedLines(show,a);
     const un=confirmedLines(show,a,true);
-    const lines=all.map(x=>`${x.en?.notified?"✓":"🔔"}${x.sokenName?"🎌":""}${perfShort(x.perf)}×${x.count}${x.cls?`(${x.cls})`:""}`).join("、");
+    const lines=all.map(x=>`${x.en?.notified?"✓":"🔔"}${x.sokenName?"🎌":""}${x.en?.origSoken!==undefined?"⇄":""}${perfShort(x.perf)}×${x.count}${x.cls?`(${x.cls})`:""}`).join("、");
     const st=un.length===0?`<span class="tag st-done">案内済み</span>`
       :un.length===all.length?`<span class="tag st-pending">未案内</span>`
       :`<span class="tag st-transfer">🔔 追加の未案内 ${un.length}件</span>`;
@@ -3327,23 +3331,45 @@ function confirmedLines(show,a,onlyNew){
     if(en.status==="ok"){ const p=findPerf(show,en.perfId); if(p) out.push({perf:p,count:en.count,alloc:en.classAlloc||null,en,sokenName:en.soken?(sokenOf(p)?.name||"総見"):null}); }
     else if(en.status==="transferred"&&en.transferTo){ const p=findPerf(show,en.transferTo); if(p) out.push({perf:p,count:en.count,alloc:en.classAlloc||null,en,sokenName:null}); }
   }
-  for(const x of out) x.cls=x.alloc?classAllocText({classAlloc:x.alloc}):"";
+  // 表示用の席種：席種割当があればそれ、なければ総見枠が単一席種なら自動で補う（会総見＝A席のみ等）
+  for(const x of out){
+    let alloc=x.alloc;
+    if(!alloc && x.en?.soken){
+      const caps=sokenOf(x.perf)?.classCaps;
+      if(caps){ const cs=Object.keys(caps).filter(c=>Number(caps[c])>0); if(cs.length===1) alloc={[cs[0]]:Number(x.count)||1}; }
+    }
+    x.dispAlloc=alloc;
+    x.cls=alloc?classAllocText({classAlloc:alloc}):"";
+  }
   return out.sort((x,y)=>(x.perf.date+x.perf.time).localeCompare(y.perf.date+y.perf.time));
+}
+// 一般⇄総見の枠振替があった場合の一言（当初の枠と今の枠が違うときだけ）
+function poolMoveNote(x){
+  const en=x.en;
+  if(!en || en.origSoken===undefined) return "";
+  const nm=sokenOf(x.perf)?.name||"総見";
+  return en.soken
+    ? `※当初は一般席でお申し込みでしたが、${nm}席でのご用意となりました`
+    : `※当初は${nm}でお申し込みでしたが、一般席でのご用意となりました`;
 }
 function zenNum(n){ return String(n); }
 // ご案内文の枚数行：席種割当があれば「S+席1枚・B席1枚」、なければ「◯枚」
 function msgCountLine(x){
-  if(x.alloc){
-    const ks=Object.keys(x.alloc).filter(k=>x.alloc[k]>0);
+  const alloc=x.dispAlloc||x.alloc;
+  if(alloc){
+    const ks=Object.keys(alloc).filter(k=>alloc[k]>0);
     ks.sort((a,b)=>(CLASS_ORDER.indexOf(a)+99)%99-(CLASS_ORDER.indexOf(b)+99)%99);
-    return ks.map(k=>`${k}席 ${x.alloc[k]}枚`).join("・");
+    return ks.map(k=>`${k}席 ${alloc[k]}枚`).join("・");
   }
   return `${x.count}枚`;
 }
 function buildMessage(show,a,onlyNew){
   const th=theaterOf(show);
-  const lines=confirmedLines(show,a,onlyNew).map(x=>
-    `　${fmtDate(x.perf.date).replace("(","（").replace(")","）")}${x.perf.time}公演${x.sokenName?`【${x.sokenName}】`:""}\n　　${msgCountLine(x)}`).join("\n");
+  const lines=confirmedLines(show,a,onlyNew).map(x=>{
+    const note=poolMoveNote(x);
+    const seatKind=x.sokenName?`${x.sokenName}席 `:"";   // 総見席であることを席種の前に明記
+    return `　${fmtDate(x.perf.date).replace("(","（").replace(")","）")}${x.perf.time}公演${x.sokenName?`【${x.sokenName}】`:""}\n　　${seatKind}${msgCountLine(x)}${note?`\n　　${note}`:""}`;
+  }).join("\n");
   const wins=(show.pickupWindows||[]);
   let winHead="";
   if(wins.length){
