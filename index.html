@@ -52,6 +52,7 @@ table.list td{padding:7px 9px;border-bottom:1px solid var(--line);vertical-align
 table.list tr:hover td{background:#fdf6fa}
 .tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap}
 .tag.guest{background:var(--gold-soft);color:#8a6d20}
+.tag.student{background:#ffe0ec;color:#c2185b}
 .tag.staff{background:var(--info-soft);color:var(--info)}
 .tag.member{background:var(--accent-soft);color:var(--accent-deep)}
 .tag.family{background:#e8e2f5;color:#5b4a9e}
@@ -281,6 +282,7 @@ tr.dragging{opacity:.4}
     <p class="muted">優先スコア ＝ 区分の点数 ＋ 在籍年数×係数 ＋ サポート代÷除数 ＋ 個人補正。自動振り分けの並び順に使われます。</p>
     <div class="row" style="margin-top:8px">
       <div><label class="fld">お客様</label><input type="number" id="w_guest" style="width:90px"></div>
+      <div><label class="fld">生徒（歌劇団生）</label><input type="number" id="w_student" style="width:90px" title="宝塚歌劇団生。スタッフ以上お客様未満の優先度"></div>
       <div><label class="fld">スタッフ</label><input type="number" id="w_staff" style="width:90px"></div>
       <div><label class="fld">親類</label><input type="number" id="w_family" style="width:90px"></div>
       <div><label class="fld">会員(基礎)</label><input type="number" id="w_member" style="width:90px"></div>
@@ -347,7 +349,7 @@ const LEGACY_KEY = "isolla_tsugi_v1";        // 旧ローカル版データ（�
 const MIRROR_KEY = "isolla_tsugi_mirror_v2"; // 未送信時の安全ミラー
 const PW_KEY     = "isolla_tsugi_pw";        // 「ログイン状態を保持」用
 
-const TYPE_LABEL = {guest:"お客様", staff:"スタッフ", member:"会員", family:"親類", other:"その他"};
+const TYPE_LABEL = {guest:"お客様", student:"生徒", staff:"スタッフ", member:"会員", family:"親類", other:"その他"};
 const ST_LABEL = {pending:"未処理", proposed:"案:○", proposedNg:"案:×", ok:"確定○", ng:"取次不可", transfer:"振替案内中", transferred:"振替済", refund:"返金対象", refunded:"返金済"};
 const DEFAULT_TEMPLATE = `（お名前）様
 
@@ -385,7 +387,7 @@ function defaults(){
   return {
     people: [], shows: [], applications: [], customTheaters: [],
     settings: {
-      weights: {guest:100, staff:80, family:70, member:40, other:20, year:5, supportDiv:1000, bday:15, bdayRange:7, premiere:30, kaisoken:0},
+      weights: {guest:100, student:90, staff:80, family:70, member:40, other:20, year:5, supportDiv:1000, bday:15, bdayRange:7, premiere:30, kaisoken:0},
       template: DEFAULT_TEMPLATE
     }
   };
@@ -657,7 +659,7 @@ function premiereBonus(person, perf, show){
   if(!person||!perf||!b) return 0;
   const {first,last}=showEdgeDates(show);
   if(perf.date!==first && perf.date!==last) return 0;
-  return ["guest","staff","family"].includes(person.type)?b:0;
+  return ["guest","student","staff","family"].includes(person.type)?b:0;
 }
 function premiereLabel(perf, show){
   const {first,last}=showEdgeDates(show);
@@ -982,8 +984,8 @@ function importPeopleRows(rows, opt){
       const b=parseBirthday(r[opt.cBday]);
       if(b){ p.birthday=b.md; if(b.year) p.birthYear=b.year; }
     }
-    if(opt.type==="member"){ p.years=p.years||{}; if(opt.year) p.years[opt.year]=true; if(p.type!=="guest"&&p.type!=="staff") p.type="member"; }
-    else p.type=opt.type;
+    if(opt.type==="member"){ p.years=p.years||{}; if(opt.year) p.years[opt.year]=true; if(p.type!=="guest"&&p.type!=="staff"&&p.type!=="student") p.type="member"; }
+    else if(p.type!=="student") p.type=opt.type;   // 生徒は名簿再読込で上書きしない
   }
   const deduped=dedupePeople();   // 取り込み後に表記ゆれ・電話一致の重複を統合
   return {added:added-deduped<0?0:added-deduped, merged:merged+ (deduped>0?deduped:0), deduped};
@@ -3063,7 +3065,7 @@ function downloadSeatSheet(){
 /* ================= 劇場追加（座席図生成） ================= */
 function renderSettings(){
   const w=DB.settings.weights;
-  for(const [k,id] of [["guest","w_guest"],["staff","w_staff"],["family","w_family"],["member","w_member"],["other","w_other"],["year","w_year"],["supportDiv","w_supportDiv"],["bday","w_bday"],["bdayRange","w_bdayRange"],["premiere","w_premiere"],["kaisoken","w_kaisoken"]])
+  for(const [k,id] of [["guest","w_guest"],["student","w_student"],["staff","w_staff"],["family","w_family"],["member","w_member"],["other","w_other"],["year","w_year"],["supportDiv","w_supportDiv"],["bday","w_bday"],["bdayRange","w_bdayRange"],["premiere","w_premiere"],["kaisoken","w_kaisoken"]])
     document.getElementById(id).value=w[k];
   document.getElementById("tmplEdit").value=DB.settings.template;
   document.getElementById("theaterList").innerHTML=allTheaters().map(t=>{
@@ -3081,6 +3083,7 @@ function renderSettings(){
 function saveWeights(){
   const w=DB.settings.weights;
   w.guest=Number(document.getElementById("w_guest").value)||0;
+  w.student=Number(document.getElementById("w_student").value)||0;
   w.staff=Number(document.getElementById("w_staff").value)||0;
   w.family=Number(document.getElementById("w_family").value)||0;
   w.member=Number(document.getElementById("w_member").value)||0;
