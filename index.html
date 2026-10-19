@@ -123,6 +123,15 @@ tr.dragging{opacity:.4}
   dialog{max-width:97vw}
   table.list{font-size:12.5px}
   table.list th,table.list td{padding:6px 6px}
+  /* 公演テーブルはスマホで横スクロールせず、1回=1カードの縦積みにする */
+  table.perf-table{display:block;width:100%}
+  table.perf-table thead{display:none}
+  table.perf-table tbody{display:block}
+  table.perf-table tr{display:block;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;padding:6px 10px;background:#fff}
+  table.perf-table td{display:block;width:auto!important;border:none;padding:4px 0;white-space:normal!important}
+  table.perf-table td[data-label]::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;color:var(--accent-deep);margin-bottom:1px}
+  table.perf-table td.perf-soken-td:empty{display:none}
+  table.perf-table .bar{max-width:none!important}
   .perf-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px}
   .perf-card{padding:8px 9px}
   button.btn{padding:8px 12px}
@@ -1103,10 +1112,10 @@ function renderShows(){
       const dem=appCount(p.id), ok=okCount(p.id), cap=Number(p.capacity)||0;
       if(p.blocked){
         return `<tr style="background:#f6f4f5">
-          <td class="no-print"></td>
-          <td><b>${perfLabel(p)}</b>${p.note?` <span class="muted">${esc(p.note)}</span>`:""}</td>
-          <td colspan="3"><span class="tag blocked">🚫 取次不可</span> <span class="muted">${esc(p.blockedReason||"")}</span></td>
-          <td class="no-print" style="white-space:nowrap">
+          <td class="no-print perf-soken-td"></td>
+          <td data-label="公演回"><b>${perfLabel(p)}</b>${p.note?` <span class="muted">${esc(p.note)}</span>`:""}</td>
+          <td colspan="3" data-label="状態"><span class="tag blocked">🚫 取次不可</span> <span class="muted">${esc(p.blockedReason||"")}</span></td>
+          <td class="no-print" data-label="操作" style="white-space:nowrap">
             <button class="btn mini ghost" onclick="toggleBlocked('${show.id}','${p.id}')">解除</button>
             <button class="btn mini danger" onclick="deletePerf('${show.id}','${p.id}')">削除</button></td>
         </tr>`;
@@ -1117,13 +1126,13 @@ function renderShows(){
       const skCap=sokenCapOf(p);
       const skSum=sk?`<br><span style="font-size:11px;color:#2e6b3a">一般${p.capacity??"未定"}${p.capacity!=null?"枚":""} ＋ 🎌${skCap??"未定"}${skCap!=null?"枚":""}${p.capacity!=null&&skCap!=null?` ＝ <b>計${(Number(p.capacity)||0)+skCap}枚</b>`:""}</span>`:"";
       const capCell=hasClasses
-        ? `<td style="width:170px"><b>${p.capacity??"未定"}</b>${p.capacity!=null?"枚":""}
+        ? `<td data-label="付与枚数" style="width:170px"><b>${p.capacity??"未定"}</b>${p.capacity!=null?"枚":""}
              ${p.classCaps?`<br><span class="muted" style="font-size:11px">${esc(Object.entries(p.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}</span>`:""}${skSum}
              <br><button class="btn mini ghost no-print" onclick="openCapDialog('${show.id}','${p.id}')">✎ 席種別に入力${sk?"（一般＋総見）":""}</button></td>`
-        : `<td style="width:130px"><input type="number" value="${p.capacity??""}" placeholder="未定" min="0"
+        : `<td data-label="付与枚数" style="width:130px"><input type="number" value="${p.capacity??""}" placeholder="未定" min="0"
              onchange="setCapacity('${show.id}','${p.id}',this.value)" style="width:90px"> 枚${skSum}</td>`;
       // 総見設定（日付の左の独立した列）：🎌名＋総見枠の枚数・申込・確定
-      const sokenCell=`<td style="white-space:nowrap;vertical-align:top">
+      const sokenCell=`<td class="perf-soken-td" data-label="総見設定" style="vertical-align:top">
         ${sk
           ? `<button class="btn mini" style="background:#e8f0e4;color:#2e6b3a;border-color:#bcd9c4" title="総見名を変更（枚数は「✎席種別に入力」で）" onclick="openSokenDialog('${show.id}','${p.id}')">🎌 ${esc(sk.name)}</button>
              <br><span class="muted" style="font-size:11px">付与 ${sk.capacity??"未定"}${sk.capacity!=null?"枚":""}${sk.classCaps?`（${esc(Object.entries(sk.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}）`:""}<br>申込 ${appCount(p.id,true)}枚 ／ 確定 ${okCount(p.id,true)}枚</span>`
@@ -1133,10 +1142,10 @@ function renderShows(){
         ${sokenCell}
         <td><b>${perfLabel(p)}</b>${p.note?` <span class="muted">${esc(p.note)}</span>`:""}</td>
         ${capCell}
-        <td>申込 <b>${dem}</b>枚${cap?` ／ 付与${cap}枚 <span class="${dem>cap?'tag st-ng':'tag st-ok'}" style="margin-left:4px">${dem>cap?"超過+"+(dem-cap):"空き"+(cap-dem)}</span>`:""}
+        <td data-label="申込状況">申込 <b>${dem}</b>枚${cap?` ／ 付与${cap}枚 <span class="${dem>cap?'tag st-ng':'tag st-ok'}" style="margin-left:4px">${dem>cap?"超過+"+(dem-cap):"空き"+(cap-dem)}</span>`:""}
             <div class="bar" style="max-width:180px"><i style="width:${cap?Math.min(dem/cap*100,100):0}%;background:${dem>cap?"var(--ng)":"var(--ok)"}"></i></div></td>
-        <td>確定 ${ok}枚</td>
-        <td class="no-print" style="white-space:nowrap">
+        <td data-label="取次確定">確定 ${ok}枚</td>
+        <td class="no-print" data-label="操作" style="white-space:nowrap">
           <button class="btn mini ghost" title="取次不可にする" onclick="toggleBlocked('${show.id}','${p.id}')">🚫</button>
           <button class="btn mini danger" onclick="deletePerf('${show.id}','${p.id}')">削除</button></td>
       </tr>`;
@@ -1151,8 +1160,9 @@ function renderShows(){
         </div>
       </div>
       <p class="muted">チケット代 ${priceSummary(show)}　／　お渡し場所：${esc(show.pickupPlace||"未設定")}　／　受取時間：${(show.pickupWindows||[]).length?show.pickupWindows.map(w=>`${w.time}公演→${w.from}〜${w.to}`).join("・"):"未設定"}</p>
-      <div style="overflow-x:auto;margin-top:8px"><table class="list">
-        <tr><th class="no-print">総見設定</th><th>公演回</th><th>付与枚数</th><th>申込状況</th><th>取次確定</th><th class="no-print"></th></tr>${rows||`<tr><td colspan="6" class="muted">回が未登録です</td></tr>`}
+      <div style="overflow-x:auto;margin-top:8px"><table class="list perf-table">
+        <thead><tr><th class="no-print">総見設定</th><th>公演回</th><th>付与枚数</th><th>申込状況</th><th>取次確定</th><th class="no-print"></th></tr></thead>
+        <tbody>${rows||`<tr><td colspan="6" class="muted">回が未登録です</td></tr>`}</tbody>
       </table></div>
     </div>`;
   }).join("");
