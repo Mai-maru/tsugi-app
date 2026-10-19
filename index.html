@@ -1103,6 +1103,7 @@ function renderShows(){
       const dem=appCount(p.id), ok=okCount(p.id), cap=Number(p.capacity)||0;
       if(p.blocked){
         return `<tr style="background:#f6f4f5">
+          <td class="no-print"></td>
           <td><b>${perfLabel(p)}</b>${p.note?` <span class="muted">${esc(p.note)}</span>`:""}</td>
           <td colspan="3"><span class="tag blocked">🚫 取次不可</span> <span class="muted">${esc(p.blockedReason||"")}</span></td>
           <td class="no-print" style="white-space:nowrap">
@@ -1121,17 +1122,21 @@ function renderShows(){
              <br><button class="btn mini ghost no-print" onclick="openCapDialog('${show.id}','${p.id}')">✎ 席種別に入力${sk?"（一般＋総見）":""}</button></td>`
         : `<td style="width:130px"><input type="number" value="${p.capacity??""}" placeholder="未定" min="0"
              onchange="setCapacity('${show.id}','${p.id}',this.value)" style="width:90px"> 枚${skSum}</td>`;
-      const sokenLine=sk?`<br><span class="tag" style="background:#e8f0e4;color:#2e6b3a">🎌${esc(sk.name)}</span>
-        <span class="muted" style="font-size:11px">付与${sk.capacity??"未定"}${sk.capacity!=null?"枚":""}${sk.classCaps?`（${esc(Object.entries(sk.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}）`:""}
-        ／ 申込${appCount(p.id,true)}枚 ／ 確定${okCount(p.id,true)}枚</span>`:"";
+      // 総見設定（日付の左の独立した列）：🎌名＋総見枠の枚数・申込・確定
+      const sokenCell=`<td style="white-space:nowrap;vertical-align:top">
+        ${sk
+          ? `<button class="btn mini" style="background:#e8f0e4;color:#2e6b3a;border-color:#bcd9c4" title="総見名を変更（枚数は「✎席種別に入力」で）" onclick="openSokenDialog('${show.id}','${p.id}')">🎌 ${esc(sk.name)}</button>
+             <br><span class="muted" style="font-size:11px">付与 ${sk.capacity??"未定"}${sk.capacity!=null?"枚":""}${sk.classCaps?`（${esc(Object.entries(sk.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}）`:""}<br>申込 ${appCount(p.id,true)}枚 ／ 確定 ${okCount(p.id,true)}枚</span>`
+          : `<span class="no-print"><button class="btn mini ghost" title="この回に総見枠を設定（会総見・組総見・フラワーフェス等）" onclick="openSokenDialog('${show.id}','${p.id}')">🎌 総見設定</button></span>`}
+      </td>`;
       return `<tr>
-        <td><b>${perfLabel(p)}</b>${p.note?` <span class="muted">${esc(p.note)}</span>`:""}${sokenLine}</td>
+        ${sokenCell}
+        <td><b>${perfLabel(p)}</b>${p.note?` <span class="muted">${esc(p.note)}</span>`:""}</td>
         ${capCell}
         <td>申込 <b>${dem}</b>枚${cap?` ／ 付与${cap}枚 <span class="${dem>cap?'tag st-ng':'tag st-ok'}" style="margin-left:4px">${dem>cap?"超過+"+(dem-cap):"空き"+(cap-dem)}</span>`:""}
             <div class="bar" style="max-width:180px"><i style="width:${cap?Math.min(dem/cap*100,100):0}%;background:${dem>cap?"var(--ng)":"var(--ok)"}"></i></div></td>
         <td>確定 ${ok}枚</td>
         <td class="no-print" style="white-space:nowrap">
-          <button class="btn mini ghost" title="総見名の設定（会総見・組総見・フラワーフェス等）。枚数は「✎席種別に入力」で" onclick="openSokenDialog('${show.id}','${p.id}')">🎌</button>
           <button class="btn mini ghost" title="取次不可にする" onclick="toggleBlocked('${show.id}','${p.id}')">🚫</button>
           <button class="btn mini danger" onclick="deletePerf('${show.id}','${p.id}')">削除</button></td>
       </tr>`;
@@ -1147,7 +1152,7 @@ function renderShows(){
       </div>
       <p class="muted">チケット代 ${priceSummary(show)}　／　お渡し場所：${esc(show.pickupPlace||"未設定")}　／　受取時間：${(show.pickupWindows||[]).length?show.pickupWindows.map(w=>`${w.time}公演→${w.from}〜${w.to}`).join("・"):"未設定"}</p>
       <div style="overflow-x:auto;margin-top:8px"><table class="list">
-        <tr><th>公演回</th><th>付与枚数</th><th>申込状況</th><th>取次確定</th><th class="no-print"></th></tr>${rows||`<tr><td colspan="5" class="muted">回が未登録です</td></tr>`}
+        <tr><th class="no-print">総見設定</th><th>公演回</th><th>付与枚数</th><th>申込状況</th><th>取次確定</th><th class="no-print"></th></tr>${rows||`<tr><td colspan="6" class="muted">回が未登録です</td></tr>`}
       </table></div>
     </div>`;
   }).join("");
