@@ -1127,7 +1127,7 @@ function renderShows(){
         ${sk
           ? `<button class="btn mini" style="background:#e8f0e4;color:#2e6b3a;border-color:#bcd9c4" title="総見名を変更（枚数は「✎席種別に入力」で）" onclick="openSokenDialog('${show.id}','${p.id}')">🎌 ${esc(sk.name)}</button>
              <br><span class="muted" style="font-size:11px">付与 ${sk.capacity??"未定"}${sk.capacity!=null?"枚":""}${sk.classCaps?`（${esc(Object.entries(sk.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}）`:""}<br>申込 ${appCount(p.id,true)}枚 ／ 確定 ${okCount(p.id,true)}枚</span>`
-          : `<span class="no-print"><button class="btn mini ghost" title="この回に総見枠を設定（会総見・組総見・フラワーフェス等）" onclick="openSokenDialog('${show.id}','${p.id}')">🎌 総見設定</button></span>`}
+          : `<span class="no-print"><button class="btn mini ghost" title="この回に総見枠を設定（会総見・組総見・フラワーフェス等）" onclick="openSokenDialog('${show.id}','${p.id}')">🎌</button></span>`}
       </td>`;
       return `<tr>
         ${sokenCell}
