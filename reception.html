@@ -54,6 +54,10 @@ const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 const CODE_KEY = "cercle_rc_code";
 const LS={get(k){try{return localStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{localStorage.setItem(k,v);}catch(e){}}, del(k){try{localStorage.removeItem(k);}catch(e){}}};
 let CODE=null, S=null, q="", onlyYet=false, open=new Set(), pollT=null, busy=false;
+// 日本語入力(IME)対策：変換中は再描画せず、確定時に1回だけ絞り込む（検索欄が作り直されて変換が壊れるのを防ぐ）
+window.__ime=false;
+document.addEventListener("compositionstart",()=>{ window.__ime=true; }, true);
+document.addEventListener("compositionend", e=>{ window.__ime=false; const t=e.target; if(t&&t.tagName==="INPUT") setTimeout(()=>{ try{ t.dispatchEvent(new Event("input",{bubbles:true})); }catch(_){} },0); }, true);
 
 function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function nameKey(s){ return String(s??"").normalize("NFKC").replace(/[\s　]/g,""); }
@@ -112,7 +116,7 @@ function render(){
   let list=all; if(q) list=list.filter(g=>g.mem.some(hit)||(kk&&kanaKey(g.kana).includes(kk))); if(onlyYet) list=list.filter(g=>g.done<g.n);
   const focus=document.activeElement?.id==="q"; const pos=document.getElementById("q")?.selectionStart;
   document.getElementById("app").innerHTML=`
-  <div class="sticky"><input type="search" id="q" placeholder="お名前・ふりがなで検索（同伴者でもOK）" value="${esc(q)}" oninput="q=this.value;render()">
+  <div class="sticky"><input type="search" id="q" placeholder="お名前・ふりがなで検索（同伴者でもOK）" value="${esc(q)}" oninput="if(window.__ime)return;q=this.value;render()">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
       <label class="muted"><input type="checkbox" ${onlyYet?"checked":""} onchange="onlyYet=this.checked;render()"> 未受付だけ</label>
       <span class="sum">来場 ${doneP}/${persons}名 ・ 完了 ${doneG}/${all.length}組</span></div></div>

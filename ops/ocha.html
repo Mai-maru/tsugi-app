@@ -216,6 +216,15 @@ let D = {};                 // 全文書
 let PASSWORD = null;
 let baseVer = {}, lastPushed = {}, dirty = new Set();
 let pushTimer=null, pushing=false, pollTimer=null;
+// 日本語入力(IME)対策：変換中は検索欄の再描画を止め（＝入力欄が作り直されて変換が壊れるのを防ぐ）、
+// 変換確定時に1回だけ絞り込みを実行する。各検索欄の oninput 先頭で if(window.__ime)return; を使う。
+window.__ime=false;
+document.addEventListener("compositionstart",()=>{ window.__ime=true; }, true);
+document.addEventListener("compositionend", e=>{
+  window.__ime=false;
+  const t=e.target;
+  if(t && t.tagName==="INPUT") setTimeout(()=>{ try{ t.dispatchEvent(new Event("input",{bubbles:true})); }catch(_){} }, 0);
+}, true);
 // 端末保存（プレビュー画面など保存が禁止された環境でも止まらないように）
 const LS={get(k){try{return localStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{localStorage.setItem(k,v);}catch(e){}}, del(k){try{localStorage.removeItem(k);}catch(e){}}};
 let curEventId = LS.get(EV_KEY) || "";
@@ -523,7 +532,7 @@ function renderApps(){
       <span class="req">${esc(a.request)}</span><button class="btn sm gold" onclick="linkGroup('${a.id}','${b.id}')">同じグループにする</button>
       <button class="btn sm ghost" onclick="dismissSugg('${a.id}')">対応不要</button></div>`;}).join("")}</div>`:""}
   <div class="flex" style="margin-bottom:8px">
-    <input type="search" style="max-width:260px" placeholder="名前・ふりがな・電話で検索" value="${esc(q)}" oninput="appFilter.q=this.value;renderAppsKeep()">
+    <input type="search" style="max-width:260px" placeholder="名前・ふりがな・電話で検索" value="${esc(q)}" oninput="if(window.__ime)return;appFilter.q=this.value;renderAppsKeep()">
     ${[["all","すべて"],["unpaid","未入金"],["perk","特典対象"],["nomatch","名簿外"],["visitor","ご見学者"],["warn","人数要確認"]].map(([k,l])=>`<button class="btn sm ${appFilter.f===k?"":"ghost"}" onclick="appFilter.f='${k}';renderApps()">${l}</button>`).join("")}
     <span class="muted">${list.length}件表示</span>
   </div>
@@ -967,7 +976,7 @@ function renderSeatsInner(){
   <div class="seat-wrap">
     <div class="seat-map-box">${seatMapHtml(ev, occ)}</div>
     ${seatEdit?"":`<div class="seat-side">
-      <input type="search" id="seatQ" placeholder="名前・ふりがなで探す" value="${esc(seatQ)}" oninput="seatQ=this.value;renderSeats();const i=document.getElementById('seatQ');i.focus();i.setSelectionRange(i.value.length,i.value.length)" style="margin-bottom:6px">
+      <input type="search" id="seatQ" placeholder="名前・ふりがなで探す" value="${esc(seatQ)}" oninput="if(window.__ime)return;seatQ=this.value;renderSeats();const i=document.getElementById('seatQ');i.focus();i.setSelectionRange(i.value.length,i.value.length)" style="margin-bottom:6px">
       ${selApp?`<div class="notice info" style="margin-top:0">選択中：<b>${esc(selApp.name)}</b>様（${seatCount(selApp)}/${headcount(selApp)}席）${selApp.seatFixed?` <span class="tag warn">📌固定</span>`:""}<br>
         ${seatCount(selApp)<headcount(selApp)?`<b>→ 座席図の空席をタップして配置${planParts(selApp).length>1?`（${seatSelChunk!=null?CHUNK_NAMES[seatSelChunk]+"組":CHUNK_NAMES[manualTarget(selApp).ci]+"組から"}）`:""}</b><br>`:""}
         ${planParts(selApp).length>1?`<span class="muted">組ごとに置くときは、一覧の「A組」「B組」をタップして選んでください。</span><br>`:""}
@@ -1483,7 +1492,7 @@ function renderCheckin(){
   if(ckOnlyYet) groups=groups.filter(g=>g.done<g.n);
   el.innerHTML=`<h2>当日受付 <span class="muted">来場 ${donePersons} / ${persons}名 ／ 受付完了 ${doneGroups} / ${all.length}組</span></h2>
   ${receptionCardHtml()}
-  <div class="sticky-search"><input type="search" id="ckq" placeholder="お名前・ふりがなで検索（同伴者のお名前でもOK）" value="${esc(q)}" oninput="ckQuery=this.value;renderCheckinKeep()" style="font-size:16px;padding:10px 12px">
+  <div class="sticky-search"><input type="search" id="ckq" placeholder="お名前・ふりがなで検索（同伴者のお名前でもOK）" value="${esc(q)}" oninput="if(window.__ime)return;ckQuery=this.value;renderCheckinKeep()" style="font-size:16px;padding:10px 12px">
   <div class="flex" style="justify-content:space-between;margin-top:4px"><label class="muted"><input type="checkbox" ${ckOnlyYet?"checked":""} onchange="ckOnlyYet=this.checked;renderCheckin()"> 未受付（の人がいる組）だけ表示</label>
     <span class="flex"><button class="btn ghost sm" onclick="exportCheckinList()">📥 受付リストをExcelで保存</button>
     ${donePersons?`<button class="btn danger sm" onclick="resetCheckins()">受付記録をすべてリセット</button>`:""}</span></div></div>
@@ -1654,7 +1663,7 @@ function renderLottery(){
     <p class="muted" style="margin-top:6px">当日受付の画面にも「🎁前回当選」と表示されます。</p>`:`<p class="muted">これより前のお茶会の記録がないため、対象外の方はいません。</p>`}
     <p class="muted">抽選対象：${parts.length-exHere.length}名（参加者${parts.length}名 − 対象外${exHere.length}名・ご見学者は対象外）</p></div>
   <div class="card"><h3 style="margin-top:0">今回の当選者を記録（${wins.length}名）</h3>
-    <div class="row"><div class="grow"><label class="fld">当選者を名前・ふりがなで検索</label><input type="search" id="lotq" value="${esc(q)}" oninput="lotQ=this.value;renderLotteryKeep()"></div>
+    <div class="row"><div class="grow"><label class="fld">当選者を名前・ふりがなで検索</label><input type="search" id="lotq" value="${esc(q)}" oninput="if(window.__ime)return;lotQ=this.value;renderLotteryKeep()"></div>
       <div class="grow"><label class="fld">景品（任意）</label><input type="text" id="lot_prize" value="${esc(window.__lotPrize||"")}" oninput="window.__lotPrize=this.value"></div></div>
     ${cands.map(p=>{ const already=wins.find(w=>nameKey(w.name)===nameKey(p.m.name)); const exd=ex.has(nameKey(p.m.name));
       return `<div class="flex" style="padding:5px 0;border-bottom:1px solid var(--line)"><span><b>${esc(p.m.name)}</b>様 <span class="muted">${esc(p.m.kana||"")}${p.m.role==="comp"?"（"+esc(p.a.name)+"様グループ）":""}</span></span>
