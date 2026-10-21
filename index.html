@@ -2791,7 +2791,7 @@ function renderSeatTab(){
       <div class="notice info no-print">座席図をクリックすると「持ちチケット（黄色）」として登録/解除されます。まとめて入力する場合：
         <span class="flex" style="display:inline-flex;margin-left:6px">
         ${theater.floors.length>1?`<select id="bulkFloor" style="width:auto">${theater.floors.map((f,i)=>`<option value="${i}" ${i===seatFloorIdx?"selected":""}>${esc(f.name)}</option>`).join("")}</select>`:`<input type="hidden" id="bulkFloor" value="0">`}
-        <input type="text" id="bulkSeats" placeholder="例：5列41-44" style="width:150px">
+        <input type="text" id="bulkSeats" placeholder="例：5列41-44 ／ 16列R1-3" style="width:180px">
         <button class="btn mini sub" onclick="bulkHeld()">追加</button></span>
       </div>`:`
       <div class="notice info no-print">右の観劇者リストから割り当てたい方を選んで、黄色い持ちチケット席をクリックしてください。割当済みの席をもう一度クリックすると解除されます。
@@ -2840,12 +2840,20 @@ function bulkHeld(){
   const perf=seatPerf(); const show=seatShow(); const theater=theaterOf(show);
   const fi=Number(document.getElementById("bulkFloor").value)||0;
   const txt=document.getElementById("bulkSeats").value.trim();
-  const m=txt.match(/(\d+)\s*列\s*(\d+)(?:\s*[-〜～]\s*(\d+))?/);
-  if(!m){ alert("「5列41-44」のように入力してください"); return; }
-  const row=m[1], from=Number(m[2]), to=Number(m[3]||m[2]);
+  // L/R（サイド席）対応：側は列の前でも後でもOK。例「16列R1-3」「R16列1-3」「L22列1-3」「左16列1-3」、通常は「5列41-44」
+  const m=txt.match(/([LRlr左右])?\s*(\d+)\s*列\s*([LRlr左右])?\s*(\d+)(?:\s*[-〜～ー－]\s*(?:[LRlr左右])?\s*(\d+))?/);
+  if(!m){ alert("「5列41-44」や「16列R1-3」のように入力してください"); return; }
+  const sideRaw=m[1]||m[3]||"";
+  const side=sideRaw?({"左":"L","右":"R"}[sideRaw]||sideRaw.toUpperCase()):"";
+  const colNum=m[2];
+  const rowLabel=side?side+colNum:colNum;            // 例 R16 / L22 / 16
+  const from=Number(m[4]), to=Number(m[5]||m[4]);
   const fl=theater.floors[fi];
-  const r=fl.rows.find(x=>String(x.row)===row);
-  if(!r){ alert(`${fl.name}に${row}列が見つかりません`); return; }
+  const r=fl.rows.find(x=>String(x.row)===rowLabel);
+  if(!r){
+    const disp=side?`${{"L":"左","R":"右"}[side]}側${colNum}列`:`${colNum}列`;
+    alert(`${fl.name}に${disp}が見つかりません`); return;
+  }
   let added=0;
   for(let n=from;n<=to;n++){
     if(!r.blocks.some(b=>n>=b[0]&&n<=b[1])) continue;
