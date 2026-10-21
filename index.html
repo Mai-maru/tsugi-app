@@ -3389,6 +3389,14 @@ function poolMoveNote(x){
     : `※当初は${nm}でお申し込みでしたが、一般席でのご用意となりました`;
 }
 function zenNum(n){ return String(n); }
+// 総見席の振込案内（お土産代・会服代）。フラワーフェスは会服不要なので会服の2行を出さない
+function sokenPayNote(x){
+  if(!x.sokenName) return "";
+  const noKaifuku=/フラワー|flower|ＦＦ|FF/i.test(x.sokenName);
+  const l1=`※総見席お取次ぎにつき、チケット代に加えて【お土産代500円】${noKaifuku?"":"と【会服代5000円】"}のお振込みをお願いいたします。`;
+  const l2=noKaifuku?"":"※今回の公演の美空会会服を既にお持ちの方は会服代お支払いは不要です。";
+  return l2?`${l1}\n　　${l2}`:l1;
+}
 // ご案内文の枚数行：席種割当があれば「S+席1枚・B席1枚」、なければ「◯枚」
 function msgCountLine(x){
   const alloc=x.dispAlloc||x.alloc;
@@ -3403,8 +3411,9 @@ function buildMessage(show,a,onlyNew){
   const th=theaterOf(show);
   const lines=confirmedLines(show,a,onlyNew).map(x=>{
     const note=poolMoveNote(x);
+    const payNote=sokenPayNote(x);   // 総見席のみ：お土産代・会服代の振込案内
     const seatKind=x.sokenName?`${x.sokenName}席 `:"";   // 総見席であることを席種の前に明記
-    return `　${fmtDate(x.perf.date).replace("(","（").replace(")","）")}${x.perf.time}公演${x.sokenName?`【${x.sokenName}】`:""}\n　　${seatKind}${msgCountLine(x)}${note?`\n　　${note}`:""}`;
+    return `　${fmtDate(x.perf.date).replace("(","（").replace(")","）")}${x.perf.time}公演${x.sokenName?`【${x.sokenName}】`:""}\n　　${seatKind}${msgCountLine(x)}${note?`\n　　${note}`:""}${payNote?`\n　　${payNote}`:""}`;
   }).join("\n");
   const wins=(show.pickupWindows||[]);
   let winHead="";
