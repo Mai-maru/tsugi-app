@@ -302,7 +302,7 @@ function mergeCheckin(a,b){
 function startPolling(){
   clearInterval(pollTimer);
   pollTimer=setInterval(async()=>{
-    if(dirty.size||pushing) return;
+    if(dirty.size||pushing||window.__ime) return;   // 日本語変換中は再描画を避ける
     let r; try{ r=await api("get_state"); }catch(e){ return; }
     if(r.status!==200) return;
     let changed=false;
