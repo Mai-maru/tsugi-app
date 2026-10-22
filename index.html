@@ -315,6 +315,18 @@ tr.dragging{opacity:.4}
     </div>
   </div>
   <div class="card">
+    <h3>総見席の既定の付記文言</h3>
+    <p class="muted">総見のご案内文に差し込まれる文言の「既定」です。各総見の🎌設定で個別に入力したものがあればそちらが優先されます（🎌側で未設定なら、ここの文言が使われます）。</p>
+    <label class="fld" style="margin-top:6px">会総見・組総見など（会服あり）</label>
+    <textarea id="sokenNoteDefault" rows="5" style="font-size:13px;width:100%;font-family:inherit"></textarea>
+    <label class="fld" style="margin-top:10px">フラワーフェスティバルなど（会服なし／総見名に「フラワー」「FF」を含むとき）</label>
+    <textarea id="sokenNoteFF" rows="4" style="font-size:13px;width:100%;font-family:inherit"></textarea>
+    <div class="flex" style="margin-top:8px">
+      <button class="btn" onclick="saveSokenNotes()">保存</button>
+      <button class="btn ghost" onclick="resetSokenNotes()">初期文に戻す</button>
+    </div>
+  </div>
+  <div class="card">
     <h3>劇場と座席表</h3>
     <p class="muted">宝塚大劇場・東京宝塚劇場・宝塚バウホールは組み込み済み。他劇場は座席表テキストから追加できます。</p>
     <div id="theaterList" style="margin:8px 0"></div>
@@ -1084,13 +1096,16 @@ function showOf(app){ return DB.shows.find(s=>s.id===app.showId); }
 /* ---------- 総見枠（同じ回の中の「総見席」。一般の付与枚数とは別枠で管理） ---------- */
 function sokenOf(perf){ return perf&&perf.soken&&perf.soken.name?perf.soken:null; }
 function sokenCapOf(perf){ const s=sokenOf(perf); return s&&s.capacity!=null?Number(s.capacity):null; }
-// 総見ごとのご案内文の付記文言（お振込み案内など）。soken.note があればそれ、無ければ総見名に応じた既定文。
-// フラワーフェス系は会服不要なので会服の文を外す。各総見ごとに🎌ダイアログで自由に編集できる。
+// 総見席の付記文言の初期文（工場出荷時）。設定タブで変更したものが DB.settings に入る。
+const BUILTIN_SOKEN_NOTE="※総見席のお取次ぎにつきましては、チケット代金に加え、1枚につきお土産代500円、および会服代5,000円（お一人につき）を併せてお振込みくださいますようお願いいたします。\n\nなお、会服を既にご購入済みの方は、再度お振込みいただく必要はございません。";
+const BUILTIN_SOKEN_NOTE_FF="※総見席のお取次ぎにつきましては、チケット代金に加え、1枚につきお土産代500円を併せてお振込みくださいますようお願いいたします。";
+// 総見ごとのご案内文の付記文言。soken.note があればそれ、無ければ総見名に応じた「既定文」（設定タブで変更可）。
+// フラワーフェス系は会服不要なので会服なしの既定を使う。各総見ごとに🎌ダイアログで個別編集もできる。
 function defaultSokenNote(name){
+  const s=(typeof DB!=="undefined"&&DB.settings)?DB.settings:{};
   const noKaifuku=/フラワー|flower|ＦＦ|FF/i.test(name||"");
-  return noKaifuku
-    ? "※総見席のお取次ぎにつきましては、チケット代金に加え、1枚につきお土産代500円を併せてお振込みくださいますようお願いいたします。"
-    : "※総見席のお取次ぎにつきましては、チケット代金に加え、1枚につきお土産代500円、および会服代5,000円（お一人につき）を併せてお振込みくださいますようお願いいたします。\n\nなお、会服を既にご購入済みの方は、再度お振込みいただく必要はございません。";
+  if(noKaifuku) return s.sokenNoteFF!=null ? s.sokenNoteFF : BUILTIN_SOKEN_NOTE_FF;
+  return s.sokenNoteDefault!=null ? s.sokenNoteDefault : BUILTIN_SOKEN_NOTE;
 }
 function sokenNoteOf(perf){
   const s=sokenOf(perf); if(!s) return "";
@@ -3158,6 +3173,8 @@ function renderSettings(){
   for(const [k,id] of [["guest","w_guest"],["student","w_student"],["staff","w_staff"],["family","w_family"],["member","w_member"],["other","w_other"],["year","w_year"],["supportDiv","w_supportDiv"],["bday","w_bday"],["bdayRange","w_bdayRange"],["premiere","w_premiere"],["kaisoken","w_kaisoken"]])
     document.getElementById(id).value=w[k];
   document.getElementById("tmplEdit").value=DB.settings.template;
+  document.getElementById("sokenNoteDefault").value=DB.settings.sokenNoteDefault!=null?DB.settings.sokenNoteDefault:BUILTIN_SOKEN_NOTE;
+  document.getElementById("sokenNoteFF").value=DB.settings.sokenNoteFF!=null?DB.settings.sokenNoteFF:BUILTIN_SOKEN_NOTE_FF;
   document.getElementById("theaterList").innerHTML=allTheaters().map(t=>{
     const seats=t.floors.reduce((s,f)=>s+f.rows.reduce((s2,r)=>s2+r.blocks.reduce((s3,b)=>s3+(b[1]-b[0]+1),0),0),0);
     const inUse=DB.shows.some(s=>s.theaterId===t.id);
@@ -3188,6 +3205,16 @@ function saveWeights(){
 }
 function saveTemplate(){ DB.settings.template=document.getElementById("tmplEdit").value; save(); alert("保存しました"); }
 function resetTemplate(){ document.getElementById("tmplEdit").value=DEFAULT_TEMPLATE; }
+function saveSokenNotes(){
+  DB.settings.sokenNoteDefault=document.getElementById("sokenNoteDefault").value;
+  DB.settings.sokenNoteFF=document.getElementById("sokenNoteFF").value;
+  save();
+  alert("保存しました。各総見の🎌設定で個別に文言を入れていない分に、この既定が使われます。");
+}
+function resetSokenNotes(){
+  document.getElementById("sokenNoteDefault").value=BUILTIN_SOKEN_NOTE;
+  document.getElementById("sokenNoteFF").value=BUILTIN_SOKEN_NOTE_FF;
+}
 function previewTheater(id){
   const t=allTheaters().find(x=>x.id===id);
   showDialog(`座席図 ─ ${esc(t.name)}`,
