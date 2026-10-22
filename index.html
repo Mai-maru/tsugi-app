@@ -2702,6 +2702,15 @@ function buildSeatSVG(theater, floorIdx, state){
   let svg=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:${zoom*100}%;height:auto;display:block">`;
   svg+=`<rect x="${W*0.25}" y="6" width="${W*0.5}" height="16" rx="8" fill="#e8dfe4"/><text x="${cx}" y="18" text-anchor="middle" font-size="9" fill="#7c2d52" font-weight="bold">ス テ ー ジ</text>`;
   const y0=44;
+  // 事前計算：L/Rボックス行の描画x範囲（中央行の列ラベルが席マスに重ならないよう判定するため）
+  const boxX={};
+  for(const r of fl.rows){
+    const lab=String(r.row); if(!/^[LR]\d+$/.test(lab)) continue;
+    let mn=Infinity, mx=-Infinity;
+    r.blocks.forEach(b=>{ const shift=(r.xshift||0)+blockShift(b,r.xshift);
+      for(let n=b[0];n<=b[1];n++){ const x=30+(colOf[n]+shift-minCol)*SW; mn=Math.min(mn,x); mx=Math.max(mx,x+SW); } });
+    boxX[lab]={min:mn,max:mx};
+  }
   let yIdx=-1;
   fl.rows.forEach((r)=>{
     if(!r.sameY) yIdx++;
@@ -2729,8 +2738,15 @@ function buildSeatSVG(theater, floorIdx, state){
     const dyL=arcDepth*Math.pow((rowMinX-14-cx)/hw,2), dyR=arcDepth*Math.pow((rowMaxX+14-cx)/hw,2);
     // ボックス席（xshiftあり）は外側1か所だけにラベル表示
     const sh=r.xshift||0;
-    if(sh<=0) svg+=`<text class="rowlab" x="${rowMinX-14}" y="${baseY+dyL+SH-2}">${r.row}</text>`;
-    if(sh>=0) svg+=`<text class="rowlab" x="${rowMaxX+14}" y="${baseY+dyR+SH-2}">${r.row}</text>`;
+    // 中央行のラベルが、その列のL/Rボックス席のマスに重なる場合はそちら側のラベルを出さない
+    // （ボックス側に「R14」等のラベルがあるので列は分かる。例：14〜17列の右ラベルがR14〜17に食い込む問題）
+    const num=String(r.row);
+    const isCenter=/^\d+$/.test(num);
+    const rBox=boxX["R"+num], lBox=boxX["L"+num];
+    const hideRight=isCenter && rBox && (rowMaxX+14+5)>=rBox.min;
+    const hideLeft =isCenter && lBox && (rowMinX-14-5)<=lBox.max;
+    if(sh<=0 && !hideLeft) svg+=`<text class="rowlab" x="${rowMinX-14}" y="${baseY+dyL+SH-2}">${r.row}</text>`;
+    if(sh>=0 && !hideRight) svg+=`<text class="rowlab" x="${rowMaxX+14}" y="${baseY+dyR+SH-2}">${r.row}</text>`;
   });
   svg+=`</svg>`;
   return svg;
