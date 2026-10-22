@@ -2735,18 +2735,19 @@ function buildSeatSVG(theater, floorIdx, state){
              `<text class="seat-num${enId?" on":""}" x="${x+(SW-1.6)/2}" y="${y+SH-3.6}">${badge!=null?badge:n}</text></g>`;
       }
     });
-    const dyL=arcDepth*Math.pow((rowMinX-14-cx)/hw,2), dyR=arcDepth*Math.pow((rowMaxX+14-cx)/hw,2);
     // ボックス席（xshiftあり）は外側1か所だけにラベル表示
     const sh=r.xshift||0;
-    // 中央行のラベルが、その列のL/Rボックス席のマスに重なる場合はそちら側のラベルを出さない
-    // （ボックス側に「R14」等のラベルがあるので列は分かる。例：14〜17列の右ラベルがR14〜17に食い込む問題）
+    // 中央行のラベルが、その列のL/Rボックス席のマスに重なる場合は、消さずに
+    // 席とボックスの隙間へ寄せて表示する（例：14〜17列の右ラベルがR14〜17に食い込む問題）
     const num=String(r.row);
     const isCenter=/^\d+$/.test(num);
     const rBox=boxX["R"+num], lBox=boxX["L"+num];
-    const hideRight=isCenter && rBox && (rowMaxX+14+5)>=rBox.min;
-    const hideLeft =isCenter && lBox && (rowMinX-14-5)<=lBox.max;
-    if(sh<=0 && !hideLeft) svg+=`<text class="rowlab" x="${rowMinX-14}" y="${baseY+dyL+SH-2}">${r.row}</text>`;
-    if(sh>=0 && !hideRight) svg+=`<text class="rowlab" x="${rowMaxX+14}" y="${baseY+dyR+SH-2}">${r.row}</text>`;
+    let rLabX=rowMaxX+14, lLabX=rowMinX-14;
+    if(isCenter && rBox && rLabX+5>=rBox.min) rLabX=(rowMaxX+rBox.min)/2;   // 中央席とR箱の中間へ
+    if(isCenter && lBox && lLabX-5<=lBox.max) lLabX=(rowMinX+lBox.max)/2;   // 中央席とL箱の中間へ
+    const dyL=arcDepth*Math.pow((lLabX-cx)/hw,2), dyR=arcDepth*Math.pow((rLabX-cx)/hw,2);
+    if(sh<=0) svg+=`<text class="rowlab" x="${lLabX}" y="${baseY+dyL+SH-2}">${r.row}</text>`;
+    if(sh>=0) svg+=`<text class="rowlab" x="${rLabX}" y="${baseY+dyR+SH-2}">${r.row}</text>`;
   });
   svg+=`</svg>`;
   return svg;
