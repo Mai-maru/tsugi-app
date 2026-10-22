@@ -1084,6 +1084,18 @@ function showOf(app){ return DB.shows.find(s=>s.id===app.showId); }
 /* ---------- 総見枠（同じ回の中の「総見席」。一般の付与枚数とは別枠で管理） ---------- */
 function sokenOf(perf){ return perf&&perf.soken&&perf.soken.name?perf.soken:null; }
 function sokenCapOf(perf){ const s=sokenOf(perf); return s&&s.capacity!=null?Number(s.capacity):null; }
+// 総見ごとのご案内文の付記文言（お振込み案内など）。soken.note があればそれ、無ければ総見名に応じた既定文。
+// フラワーフェス系は会服不要なので会服の文を外す。各総見ごとに🎌ダイアログで自由に編集できる。
+function defaultSokenNote(name){
+  const noKaifuku=/フラワー|flower|ＦＦ|FF/i.test(name||"");
+  return noKaifuku
+    ? "※総見席のお取次ぎにつきましては、チケット代金に加え、1枚につきお土産代500円を併せてお振込みくださいますようお願いいたします。"
+    : "※総見席のお取次ぎにつきましては、チケット代金に加え、1枚につきお土産代500円、および会服代5,000円（お一人につき）を併せてお振込みくださいますようお願いいたします。\n\nなお、会服を既にご購入済みの方は、再度お振込みいただく必要はございません。";
+}
+function sokenNoteOf(perf){
+  const s=sokenOf(perf); if(!s) return "";
+  return s.note!=null ? s.note : defaultSokenNote(s.name);
+}
 
 function renderShows(){
   const el=document.getElementById("showList");
@@ -1270,6 +1282,10 @@ function openSokenDialog(showId,perfId){
       ? `<p class="notice info">枚数（一般席・総見席）は、一覧の「✎ 席種別に入力」からまとめて入力します。ここでは総見名だけを設定してください。${sk.capacity!=null?`<br>現在の総見枠：${sk.capacity}枚${sk.classCaps?`（${esc(Object.entries(sk.classCaps).map(([c,n])=>`${c}${n}`).join("・"))}）`:""}`:""}</p>`
       : `<div class="row" style="margin-top:10px"><div><label class="fld">総見枠の枚数</label>
           <input type="number" id="sk_cap" min="0" value="${sk.capacity??""}" style="width:100px"> 枚</div></div>`}
+    <label class="fld" style="margin-top:12px">ご案内文に付ける文言（この総見用）</label>
+    <p class="muted" style="margin:2px 0 4px">この総見の確定者へのご案内文に差し込まれます。総見ごとに自由に編集できます（空欄にすると付記なし）。</p>
+    <textarea id="sk_note" rows="5" style="width:100%;font-size:13px;font-family:inherit">${esc(sk.note!=null?sk.note:defaultSokenNote(sk.name||""))}</textarea>
+    <button type="button" class="btn mini ghost no-print" style="margin-top:4px" onclick="document.getElementById('sk_note').value=defaultSokenNote(document.getElementById('sk_name').value.trim())">既定の文言に戻す</button>
     <div class="flex" style="margin-top:14px;justify-content:space-between">
       <span>${sokenOf(p)?`<button class="btn mini danger" onclick="removeSoken('${showId}','${perfId}')">総見設定を解除</button>`:""}</span>
       <span class="flex">
@@ -1284,13 +1300,15 @@ function saveSokenDialog(showId,perfId){
   const name=document.getElementById("sk_name").value.trim();
   if(!name){ alert("総見名を入力してください（例：組総見）"); return; }
   const prev=p.soken||{};
+  const noteEl=document.getElementById("sk_note");
+  const note=noteEl?noteEl.value:(prev.note!=null?prev.note:undefined);
   const capEl=document.getElementById("sk_cap");   // 非席種劇場のみ存在
   if(capEl){
     const v=capEl.value;
-    p.soken={name, capacity:v===""?null:Number(v), classCaps:null};
+    p.soken={name, capacity:v===""?null:Number(v), classCaps:null, note};
   }else{
     // 席種劇場：枚数は「✎席種別に入力」で管理。既存の枚数はそのまま保持
-    p.soken={name, capacity:prev.capacity??null, classCaps:prev.classCaps??null};
+    p.soken={name, capacity:prev.capacity??null, classCaps:prev.classCaps??null, note};
   }
   closeDialog(); rerender();
 }
@@ -3428,13 +3446,10 @@ function poolMoveNote(x){
     : `※当初は${nm}でお申し込みでしたが、一般席でのご用意となりました`;
 }
 function zenNum(n){ return String(n); }
-// 総見席の振込案内（お土産代・会服代）。フラワーフェスは会服不要なので会服の2行を出さない
+// 総見席の付記文言（総見ごとに🎌ダイアログで編集可。未設定なら総見名に応じた既定文）
 function sokenPayNote(x){
   if(!x.sokenName) return "";
-  const noKaifuku=/フラワー|flower|ＦＦ|FF/i.test(x.sokenName);
-  const l1=`※総見席お取次ぎにつき、チケット代に加えて【お土産代500円】${noKaifuku?"":"と【会服代5000円】"}のお振込みをお願いいたします。`;
-  const l2=noKaifuku?"":"※今回の公演の美空会会服を既にお持ちの方は会服代お支払いは不要です。";
-  return l2?`${l1}\n　　${l2}`:l1;
+  return sokenNoteOf(x.perf)||"";
 }
 // ご案内文の枚数行：席種割当があれば「S+席1枚・B席1枚」、なければ「◯枚」
 function msgCountLine(x){
@@ -3450,9 +3465,11 @@ function buildMessage(show,a,onlyNew){
   const th=theaterOf(show);
   const lines=confirmedLines(show,a,onlyNew).map(x=>{
     const note=poolMoveNote(x);
-    const payNote=sokenPayNote(x);   // 総見席のみ：お土産代・会服代の振込案内
+    const payNote=sokenPayNote(x);   // 総見席のみ：総見ごとの付記文言
+    // 複数行の付記は各行を字下げ（空行はそのまま空行に）
+    const payBlock=payNote?("\n"+payNote.split("\n").map(l=>l?`　　${l}`:"").join("\n")):"";
     const seatKind=x.sokenName?`${x.sokenName}席 `:"";   // 総見席であることを席種の前に明記
-    return `　${fmtDate(x.perf.date).replace("(","（").replace(")","）")}${x.perf.time}公演${x.sokenName?`【${x.sokenName}】`:""}\n　　${seatKind}${msgCountLine(x)}${note?`\n　　${note}`:""}${payNote?`\n　　${payNote}`:""}`;
+    return `　${fmtDate(x.perf.date).replace("(","（").replace(")","）")}${x.perf.time}公演${x.sokenName?`【${x.sokenName}】`:""}\n　　${seatKind}${msgCountLine(x)}${note?`\n　　${note}`:""}${payBlock}`;
   }).join("\n");
   const wins=(show.pickupWindows||[]);
   let winHead="";
