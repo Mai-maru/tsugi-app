@@ -2826,6 +2826,12 @@ function renderSeatTab(){
         ${theater.floors.length>1?`<select id="bulkFloor" style="width:auto">${theater.floors.map((f,i)=>`<option value="${i}" ${i===seatFloorIdx?"selected":""}>${esc(f.name)}</option>`).join("")}</select>`:`<input type="hidden" id="bulkFloor" value="0">`}
         <input type="text" id="bulkSeats" placeholder="例：5列41-44 ／ 16列R1-3" style="width:180px">
         <button class="btn mini sub" onclick="bulkHeld()">追加</button></span>
+        <div style="margin-top:8px">
+          <button class="btn mini gold" onclick="document.getElementById('ticketPhoto').click()">📷 チケット写真から読み取り</button>
+          <input type="file" id="ticketPhoto" accept="image/*" multiple style="display:none" onchange="ocrTickets(this)">
+          <span class="muted" style="font-size:11.5px">鮮明に写した写真（1枚10枚程度まで）。読み取り後に確認・手直しできます。</span>
+          <div id="ocrStatus" class="muted" style="margin-top:4px"></div>
+        </div>
       </div>`:`
       <div class="notice info no-print">右の観劇者リストから割り当てたい方を選んで、黄色い持ちチケット席をクリックしてください。割当済みの席をもう一度クリックすると解除されます。
       <button class="btn mini gold" style="margin-left:8px" onclick="autoAssignSeats()">✨ 席種に沿って自動で割り当て</button>
@@ -2897,6 +2903,135 @@ function bulkHeld(){
   }
   save(); renderSeatTab();
   if(!added) alert("該当する座席がないか、すでに登録済みです");
+}
+/* ---------- チケット写真から席を読み取り（端末内OCR・Tesseract.js） ---------- */
+async function loadTesseract(){
+  if(window.Tesseract) return true;
+  try{
+    await new Promise((res,rej)=>{
+      const s=document.createElement("script");
+      s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+      s.onload=res; s.onerror=rej; document.head.appendChild(s);
+    });
+    return !!window.Tesseract;
+  }catch(e){ return false; }
+}
+// OCRテキストから「◯階 ◯列 ◯番」を全部拾う（箱席のL/Rは番側に入る：例 2階14列R1番）
+function parseTicketSeats(text){
+  const z2h=s=>String(s).replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+    .replace(/[Ａ-Ｚａ-ｚ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
+  text=z2h(text);
+  const out=[];
+  // 「階」はOCRで誤読されやすい（由/坦等）ので必須にせず、床(1/2)と列の間に非数字を1〜4文字許す。
+  // 床と列が隣接する「15列」などを誤って1階5列と拾わないよう、間に最低1文字の非数字を要求。
+  const re=/([12])[^0-9列]{1,4}(\d{1,2})\s*列[^0-9A-Za-z]{0,4}([LRlr]?\s*\d{1,3})\s*番/g;
+  let m;
+  while((m=re.exec(text))){
+    out.push({ floor:Number(m[1])-1, col:m[2], seat:m[3].replace(/\s/g,"").toUpperCase() });
+  }
+  return out;
+}
+// 読み取り結果→席キーに変換＆実在チェック
+function ticketToSeat(theater, t){
+  const sm=t.seat.match(/^([LR])(\d+)$/);
+  let row, num;
+  if(sm){ row=sm[1]+t.col; num=Number(sm[2]); }      // 2階14列R1番 → row R14, 1番
+  else { row=String(t.col); num=Number(t.seat); }     // 2階14列84番 → row 14, 84番
+  const raw=`${t.floor+1}階 ${t.col}列 ${t.seat}番`;
+  const fl=theater&&theater.floors[t.floor];
+  const r=fl&&fl.rows.find(x=>String(x.row)===row);
+  const valid=!!(r && r.blocks.some(b=>num>=b[0]&&num<=b[1]));
+  return { valid, key:valid?seatKeyOf(t.floor,row,num):null, raw };
+}
+// OCR前の画像前処理：拡大＋グレースケール（装飾チケットでも席の太字を拾いやすくする）
+async function preprocessOcrImage(file){
+  const img=await createImageBitmap(file);
+  const SC=Math.min(3, Math.max(1, Math.round(2200/Math.max(img.width,1))||3)); // 長辺が小さい画像ほど大きく拡大
+  const sc=Math.max(SC,2);
+  const cv=document.createElement("canvas"); cv.width=img.width*sc; cv.height=img.height*sc;
+  const ctx=cv.getContext("2d"); ctx.imageSmoothingQuality="high"; ctx.drawImage(img,0,0,cv.width,cv.height);
+  try{
+    const id=ctx.getImageData(0,0,cv.width,cv.height); const d=id.data;
+    for(let i=0;i<d.length;i+=4){ const g=(d[i]*0.3+d[i+1]*0.59+d[i+2]*0.11)|0; d[i]=d[i+1]=d[i+2]=g; }
+    ctx.putImageData(id,0,0);
+  }catch(e){}
+  return cv;
+}
+let _ocrSeats=[];
+async function ocrTickets(input){
+  const files=[...input.files]; input.value="";
+  if(!files.length) return;
+  const perf=seatPerf(), show=seatShow(), theater=theaterOf(show);
+  if(!perf||!theater){ alert("公演と回を選んでください"); return; }
+  const st=document.getElementById("ocrStatus");
+  const setSt=m=>{ if(st) st.textContent=m; };
+  setSt("読み取りライブラリを準備中…（初回は少し時間がかかります）");
+  if(!(await loadTesseract())){ setSt(""); alert("読み取りライブラリを読み込めませんでした。インターネット接続をご確認ください。"); return; }
+  let worker;
+  try{
+    worker=await Tesseract.createWorker("jpn");
+    await worker.setParameters({ tessedit_pageseg_mode:"11" });  // 散在テキスト（席行をバラバラに拾う）
+    const found=[];
+    for(let i=0;i<files.length;i++){
+      setSt(`写真を読み取り中… ${i+1}/${files.length}`);
+      const cv=await preprocessOcrImage(files[i]);
+      const { data:{ text } }=await worker.recognize(cv);
+      found.push(...parseTicketSeats(text));
+    }
+    await worker.terminate();
+    setSt("");
+    // 重複除去＋席キー化
+    const seen=new Set(); const seats=[];
+    for(const t of found){
+      const s=ticketToSeat(theater,t);
+      const id=s.key||s.raw;
+      if(seen.has(id)) continue; seen.add(id);
+      s.already=s.key?perf.heldSeats.includes(s.key):false;
+      seats.push(s);
+    }
+    if(!seats.length){ alert("チケットの席（「2階14列84番」など）を読み取れませんでした。\nもう少し明るく・大きく写すか、まとめて入力欄に手入力してください。"); return; }
+    _ocrSeats=seats;
+    openOcrConfirm();
+  }catch(e){
+    setSt(""); try{ worker&&worker.terminate(); }catch(_){}
+    alert("読み取り中にエラーが発生しました："+(e.message||e));
+  }
+}
+function openOcrConfirm(){
+  const theater=theaterOf(seatShow());
+  const rows=_ocrSeats.map((s,i)=>{
+    const label=s.key?seatLabelOf(theater,s.key):s.raw;
+    const tag=!s.valid?`<span class="tag st-ng">⚠読み取り不明</span>`
+      :s.already?`<span class="tag st-done">既に登録済み</span>`
+      :`<span class="tag st-ok">✓</span>`;
+    const canCheck=s.valid&&!s.already;
+    return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13.5px;${!canCheck?"opacity:.6":""}">
+      <input type="checkbox" class="ocr-chk" data-i="${i}" ${canCheck?"checked":""} ${canCheck?"":"disabled"}>
+      <span style="min-width:150px">${esc(label)}</span>${tag}</label>`;
+  }).join("");
+  const okN=_ocrSeats.filter(s=>s.valid&&!s.already).length;
+  showDialog("📷 読み取り結果の確認", `
+    <p class="muted">読み取れた席です。<b>追加する席にチェック</b>を入れて「持ちチケットに追加」を押してください。
+    読み取れなかった席や間違いは、下の手入力でも追加できます（例：2階14列R1番→「16列R1-3」）。</p>
+    <div style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:6px 12px">${rows}</div>
+    ${_ocrSeats.some(s=>!s.valid)?`<p class="notice warn" style="margin-top:8px">⚠「読み取り不明」の席は座席データに一致しませんでした。写真を撮り直すか、手入力で追加してください。</p>`:""}
+    <div class="flex" style="margin-top:14px;justify-content:space-between">
+      <span class="muted">追加できる席：${okN}件</span>
+      <span class="flex">
+        <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+        <button class="btn" onclick="applyOcrSeats()">持ちチケットに追加</button>
+      </span>
+    </div>`);
+}
+function applyOcrSeats(){
+  const perf=seatPerf();
+  let added=0;
+  document.querySelectorAll("#dlg .ocr-chk:checked").forEach(c=>{
+    const s=_ocrSeats[Number(c.dataset.i)];
+    if(s&&s.key&&!perf.heldSeats.includes(s.key)){ perf.heldSeats.push(s.key); added++; }
+  });
+  closeDialog(); save(); renderSeatTab();
+  alert(added?`${added}件の席を持ちチケットに追加しました。`:"追加した席はありませんでした。");
 }
 function autoAssignSeats(){
   const show=seatShow(), perf=seatPerf(), theater=theaterOf(show);
