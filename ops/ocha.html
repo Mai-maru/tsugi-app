@@ -108,13 +108,21 @@ button.mini{border:1px solid var(--line);background:#fff;border-radius:4px;font-
 .ck-item.done{background:var(--ok-soft)}
 .ck-item .nm{font-size:16px;font-weight:700}
 .ck-item .sub{font-size:12px;color:var(--sub)}
-.ck-btn{margin-left:auto;min-width:86px;padding:10px 8px;border-radius:10px;border:2px solid var(--accent);background:#fff;color:var(--accent-deep);font-weight:700;font-size:14px;font-family:inherit}
-.ck-item.done .ck-btn{background:var(--ok);border-color:var(--ok);color:#fff}
+.ck-btn{min-width:86px;padding:10px 8px;border-radius:10px;border:2px solid var(--accent);background:#fff;color:var(--accent-deep);font-weight:700;font-size:14px;font-family:inherit}
+.ck-rt{margin-left:auto;display:flex;flex-direction:column;gap:5px;align-items:stretch}
+.ck-item.done .ck-btn:not(.abs){background:var(--ok);border-color:var(--ok);color:#fff}
 .ck-item.part{background:var(--warn-soft)}
+.ck-item.absent{background:#ecebed}
+.ck-item.absent .nm{color:#8a7580;text-decoration:line-through}
+.ck-btn.abs{min-width:66px;padding:10px 6px;border-color:#b2a0ab;color:#8a7580;font-size:13px}
+.ck-btn.abs.on{background:#8a7580;border-color:#8a7580;color:#fff}
+.ck-btn.abs.sm{min-width:58px;padding:6px 5px}
+.tag.abs{background:#dedbe0;color:#6a5a63}
 .ck-members{background:#fbf8fa;border-bottom:1px solid var(--line);padding:4px 12px 8px 28px}
 .ck-member{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
 .ck-member.done{color:var(--ok)}
-.ck-member.done .ck-btn{background:var(--ok);border-color:var(--ok);color:#fff}
+.ck-member.done .ck-btn:not(.abs){background:var(--ok);border-color:var(--ok);color:#fff}
+.ck-member.absent{color:#8a7580}
 .ck-member.hit{background:#fff4d6;border-radius:6px}
 a.tel{display:inline-block;margin-top:2px;font-size:14px;font-weight:700;color:var(--info);text-decoration:none;background:var(--info-soft);border-radius:8px;padding:2px 8px}
 .ck-btn.sm{min-width:74px;padding:6px 6px;font-size:13px}
@@ -1477,20 +1485,21 @@ function checkinGroups(){
   const ev=curEvent(); const ex=excludedWinnerKeys(ev);
   return activeApps().map(a=>{
     const mem=membersOf(a).map((m,i)=>{ const key=a.id+":"+i; const st=D.teaCheckin[key];
-      return {key, m, i, done:!!(st&&st.v), at:st?.t, prevWin:ex.has(nameKey(m.name))}; });
-    return {a, mem, done:mem.filter(x=>x.done).length, n:mem.length};
+      return {key, m, i, done:!!(st&&st.v), absent:st?.st==="absent", at:st?.t, prevWin:ex.has(nameKey(m.name))}; });
+    return {a, mem, done:mem.filter(x=>x.done).length, absent:mem.filter(x=>x.absent).length, n:mem.length};
   }).sort((x,y)=>kanaKey(sortKana(x.a)).localeCompare(kanaKey(sortKana(y.a)),"ja"));
 }
 function renderCheckin(){
   const el=document.getElementById("tab-checkin"); if(needEvent(el)) return;
   const all=checkinGroups();
-  const persons=all.reduce((s,g)=>s+g.n,0), donePersons=all.reduce((s,g)=>s+g.done,0), doneGroups=all.filter(g=>g.done===g.n).length;
+  const persons=all.reduce((s,g)=>s+g.n,0), donePersons=all.reduce((s,g)=>s+g.done,0), absentPersons=all.reduce((s,g)=>s+g.absent,0);
+  const doneGroups=all.filter(g=>g.done+g.absent===g.n).length;   // 受付＋欠席がそろった組＝対応完了
   const q=ckQuery.trim(); const qk=nameKey(q), kk=kanaKey(q);
   const hit=m=>q && (nameKey(m.name).includes(qk) || (kk && kanaKey(m.kana).includes(kk)));
   let groups=all;
   if(q) groups=groups.filter(g=>g.mem.some(x=>hit(x.m)));
-  if(ckOnlyYet) groups=groups.filter(g=>g.done<g.n);
-  el.innerHTML=`<h2>当日受付 <span class="muted">来場 ${donePersons} / ${persons}名 ／ 受付完了 ${doneGroups} / ${all.length}組</span></h2>
+  if(ckOnlyYet) groups=groups.filter(g=>g.done+g.absent<g.n);
+  el.innerHTML=`<h2>当日受付 <span class="muted">来場 ${donePersons} / ${persons}名${absentPersons?` ／ 欠席 ${absentPersons}名`:""} ／ 完了 ${doneGroups} / ${all.length}組</span></h2>
   ${receptionCardHtml()}
   <div class="sticky-search"><input type="search" id="ckq" placeholder="お名前・ふりがなで検索（同伴者のお名前でもOK）" value="${esc(q)}" oninput="if(window.__ime)return;ckQuery=this.value;renderCheckinKeep()" style="font-size:16px;padding:10px 12px">
   <div class="flex" style="justify-content:space-between;margin-top:4px"><label class="muted"><input type="checkbox" ${ckOnlyYet?"checked":""} onchange="ckOnlyYet=this.checked;renderCheckin()"> 未受付（の人がいる組）だけ表示</label>
@@ -1498,24 +1507,26 @@ function renderCheckin(){
     ${donePersons?`<button class="btn danger sm" onclick="resetCheckins()">受付記録をすべてリセット</button>`:""}</span></div></div>
   <div class="card" style="padding:0;overflow:hidden">
   ${groups.slice(0,150).map(g=>{
-    const a=g.a, full=g.done===g.n, part=g.done>0&&!full, unpaid=a.kind!=="visitor"&&!a.paid;
+    const a=g.a, allAbs=g.n>0&&g.absent===g.n, full=g.done===g.n, part=g.done>0&&!full, unpaid=a.kind!=="visitor"&&!a.paid;
     const compHit=q && g.mem.some(x=>x.m.role==="comp"&&hit(x.m));
     const open=g.n>1 && (ckOpen.has(a.id) || compHit);
     const rep=g.mem[0];
-    const btn = g.n===1
+    const mainBtn = g.n===1
       ? `<button class="ck-btn" onclick="toggleCheckin('${rep.key}')">${full?"✓ 受付済":"受付"}</button>`
       : `<button class="ck-btn" onclick="checkinGroup('${a.id}')">${full?"✓ 全員受付済":part?`残り${g.n-g.done}名を受付`:`全員受付（${g.n}名）`}</button>`;
-    return `<div class="ck-item ${full?"done":part?"part":""}">
+    const absBtn = `<button class="ck-btn abs${allAbs?" on":""}" onclick="absentGroup('${a.id}')">${allAbs?"欠席 取消":"欠席"}</button>`;
+    return `<div class="ck-item ${allAbs?"absent":full?"done":part?"part":""}">
       <div style="flex:1;min-width:0"><div class="nm">${esc(a.name)}<span style="font-weight:400;font-size:13px">様</span>
-          ${g.n>1?`<span class="tag ${full?"ok":part?"warn":"info"}" style="font-size:12.5px">${g.done}/${g.n}名</span>`:""}</div>
+          ${allAbs?`<span class="tag abs" style="font-size:12.5px">欠席</span>`:g.n>1?`<span class="tag ${full?"ok":part?"warn":"info"}" style="font-size:12.5px">${g.done}/${g.n}名${g.absent?`・欠${g.absent}`:""}</span>`:""}</div>
         <div class="sub">${esc(a.kana||personOf(a.personId)?.kana||"")}${seatCount(a)?` ／ 💺${esc(seatsText(a.seats))}`:""}</div>
         ${(a.phone||personOf(a.personId)?.phone)?`<div>${telHtml(a.phone||personOf(a.personId)?.phone)}</div>`:""}
         <div>${a.kind==="visitor"?`<span class="tag visitor">ご見学 ${esc(a.affiliation||"")}</span>`:""}${unpaid?`<span class="tag ng">未入金</span>`:""}${perksOf(a).map(p=>`<span class="tag perk">★${p.min}名以上特典</span>`).join("")}${g.mem.filter(x=>x.prevWin).map(x=>`<span class="tag warn">🎁前回当選：${esc(x.m.name)}様</span>`).join("")}</div>
-        ${g.n>1?`<a href="#" class="muted" onclick="ckToggleOpen('${a.id}');return false">${open?"▲ 閉じる":"▼ 1人ずつ受付（別々にご来場の場合）"}</a>`:""}
-      </div>${btn}</div>
-      ${open?`<div class="ck-members">${g.mem.map(x=>`<div class="ck-member ${x.done?"done":""} ${hit(x.m)?"hit":""}">
-        <span style="flex:1">${x.m.role==="rep"?"👑 ":""}${esc(x.m.name)}様 <span class="muted">${esc(x.m.kana||"")}${memberSeat(a,x.i)?` 💺${esc(memberSeat(a,x.i))}`:""}</span></span>
-        <button class="ck-btn sm" onclick="toggleCheckin('${x.key}')">${x.done?"✓ 受付済":"受付"}</button></div>`).join("")}</div>`:""}`;
+        ${g.n>1?`<a href="#" class="muted" onclick="ckToggleOpen('${a.id}');return false">${open?"▲ 閉じる":"▼ 1人ずつ 受付・欠席（別々にご来場の場合）"}</a>`:""}
+      </div><div class="ck-rt">${mainBtn}${absBtn}</div></div>
+      ${open?`<div class="ck-members">${g.mem.map(x=>`<div class="ck-member ${x.done?"done":""} ${x.absent?"absent":""} ${hit(x.m)?"hit":""}">
+        <span style="flex:1">${x.m.role==="rep"?"👑 ":""}${esc(x.m.name)}様 <span class="muted">${esc(x.m.kana||"")}${memberSeat(a,x.i)?` 💺${esc(memberSeat(a,x.i))}`:""}</span>${x.absent?' <span class="tag abs">欠席</span>':""}</span>
+        <button class="ck-btn sm" onclick="toggleCheckin('${x.key}')">${x.done?"✓ 受付済":"受付"}</button>
+        <button class="ck-btn abs sm${x.absent?" on":""}" onclick="setAbsent('${x.key}',${x.absent?"false":"true"})">${x.absent?"取消":"欠席"}</button></div>`).join("")}</div>`:""}`;
   }).join("")||`<p class="muted" style="padding:12px">該当なし</p>`}
   </div>${groups.length>150?`<p class="muted">先頭150組を表示中。検索で絞り込んでください。</p>`:""}`;
 }
@@ -1615,8 +1626,8 @@ function exportCheckinList(){
     g1.push([no, a.name, sortKana(a)===a.name?"":sortKana(a), g.n, (a.companions||[]).map(c=>c.name).join("、"), seatsText(a.seats)||"",
       fmtTel(a.phone||personOf(a.personId)?.phone), a.kind==="visitor"?"-":(a.paid?"済":"未入金"), perksOf(a).map(p=>`${p.min}名以上`).join("・"),
       a.kind==="visitor"?`ご見学 ${a.affiliation||""}`:(TYPE_LABEL[personOf(a.personId)?.type]||""), g.mem.filter(x=>x.prevWin).map(x=>x.m.name).join("、"),
-      g.done===g.n?"受付済":g.done?`${g.done}/${g.n}名`:"未", ""]);
-    g.mem.forEach(x=>g2.push([no, a.name, x.m.name, x.m.kana||"", x.m.role==="rep"?"代表者":"同伴者", memberSeat(a,x.i)||"", x.done?"済":"", ""]));
+      g.done===g.n?"受付済":g.absent===g.n?"欠席":(g.done||g.absent)?`受付${g.done}・欠席${g.absent}/${g.n}名`:"未", ""]);
+    g.mem.forEach(x=>g2.push([no, a.name, x.m.name, x.m.kana||"", x.m.role==="rep"?"代表者":"同伴者", memberSeat(a,x.i)||"", x.done?"済":x.absent?"欠席":"", ""]));
   });
   const wb=XLSX.utils.book_new();
   const s1=XLSX.utils.aoa_to_sheet(g1); s1["!cols"]=[4,16,18,5,40,22,14,7,12,16,18,9,10].map(w=>({wch:w}));
@@ -1635,13 +1646,30 @@ async function resetCheckins(){
   const t=Date.now(); keys.forEach(k=>D.teaCheckin[k]={v:false,t,by:CLIENT_ID+":reset"});   // 消さずに「未受付」で上書き（同時操作でも確実に戻る）
   save(); renderCheckinKeep(); notify(`${keys.length}名分の受付記録をリセットしました`);
 }
-// グループ全員をまとめて受付（全員済みなら、まとめて取り消し）
+// グループ全員をまとめて受付（全員済みなら、まとめて取り消し）。欠席の方は受付しない
 async function checkinGroup(appId){
   const a=D.teaApps.find(x=>x.id===appId); const keys=membersOf(a).map((m,i)=>appId+":"+i);
   const allDone=keys.every(k=>D.teaCheckin[k]?.v);
   if(allDone){ if(!await ask(`${a.name}様のグループ（${keys.length}名）の受付をすべて取り消しますか？`)) return;
     keys.forEach(k=>D.teaCheckin[k]={v:false,t:Date.now(),by:CLIENT_ID}); }
-  else keys.forEach(k=>{ if(!D.teaCheckin[k]?.v) D.teaCheckin[k]={v:true,t:Date.now(),by:CLIENT_ID}; });
+  else{
+    const ks=keys.filter(k=>!D.teaCheckin[k]?.v && D.teaCheckin[k]?.st!=="absent");   // 欠席の方は受付しない
+    if(!ks.length){ notify("受付できる方がいません（欠席を取り消すと受付できます）"); return; }
+    ks.forEach(k=>D.teaCheckin[k]={v:true,t:Date.now(),by:CLIENT_ID}); }
+  save(); renderCheckinKeep();
+}
+// 1人分の欠席を切り替え（急病・当日キャンセルなど）。v:false・st:"absent"で保存、取消は未受付へ戻す
+async function setAbsent(key, on){
+  D.teaCheckin[key]= on ? {v:false,t:Date.now(),by:CLIENT_ID,st:"absent"} : {v:false,t:Date.now(),by:CLIENT_ID};
+  save(); renderCheckinKeep();
+}
+// グループ全員の欠席を切り替え
+async function absentGroup(appId){
+  const a=D.teaApps.find(x=>x.id===appId); const keys=membersOf(a).map((m,i)=>appId+":"+i);
+  const allAbs=keys.every(k=>D.teaCheckin[k]?.st==="absent"); const t=Date.now();
+  if(allAbs){ keys.forEach(k=>D.teaCheckin[k]={v:false,t,by:CLIENT_ID}); }   // 欠席取消→未受付へ
+  else{ if(!await ask(`${a.name}様${keys.length>1?`のグループ（${keys.length}名）`:""}を「欠席」にしますか？`)) return;
+    keys.forEach(k=>D.teaCheckin[k]={v:false,t,by:CLIENT_ID,st:"absent"}); }
   save(); renderCheckinKeep();
 }
 
