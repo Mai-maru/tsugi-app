@@ -52,8 +52,19 @@ a.tel{display:inline-block;margin-top:2px;font-size:14px;font-weight:700;color:v
 const API_URL = "https://arezgremacymxvqwhzrv.supabase.co/functions/v1/ocha-reception";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyZXpncmVtYWN5bXh2cXdoenJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDYzNjMsImV4cCI6MjA5Nzg4MjM2M30.htZGTQQQi31Q_0jJOP-xKVXNdzyUdq8c0geitp-urqQ";
 const CODE_KEY = "cercle_rc_code";
+const STATE_KEY = "cercle_rc_state";     // 直近の名簿・受付状況（オフライン表示用）
+const PEND_KEY = "cercle_rc_pending";    // 未送信の受付操作キュー
 const LS={get(k){try{return localStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{localStorage.setItem(k,v);}catch(e){}}, del(k){try{localStorage.removeItem(k);}catch(e){}}};
 let CODE=null, S=null, q="", onlyYet=false, open=new Set(), pollT=null, busy=false;
+let online=true, flushing=false;
+// オフライン対応：未送信キュー（key→{v,t}）と、名簿・受付状況のキャッシュ（コード単位）
+function loadPending(){ try{ return JSON.parse(LS.get(PEND_KEY))||{}; }catch(e){ return {}; } }
+let pending = loadPending();
+function savePending(){ LS.set(PEND_KEY, JSON.stringify(pending)); }
+function pendCount(){ return Object.keys(pending).length; }
+function cacheState(){ if(S&&CODE){ try{ LS.set(STATE_KEY, JSON.stringify({code:CODE, s:S, at:Date.now()})); }catch(e){} } }
+function loadCachedState(){ try{ const o=JSON.parse(LS.get(STATE_KEY)); return (o&&o.code===CODE)?o:null; }catch(e){ return null; } }
+function applyPending(s){ s.checkin=s.checkin||{}; for(const k in pending){ s.checkin[k]=pending[k]; } return s; }
 // 日本語入力(IME)対策：変換中は再描画せず、確定時に1回だけ絞り込む（検索欄が作り直されて変換が壊れるのを防ぐ）
 window.__ime=false;
 document.addEventListener("compositionstart",()=>{ window.__ime=true; }, true);
@@ -84,13 +95,53 @@ function showLogin(msg){
     ${msg?`<div class="err">${esc(msg)}</div>`:""}<p class="muted" style="margin-top:12px">QRコードから開いた場合は入力不要です。</p></div>`;
 }
 async function login(){ const v=document.getElementById("codeIn").value.trim(); if(!v) return; CODE=v; await load(true); }
+function setEvInfo(){ if(S&&S.event) document.getElementById("evInfo").textContent=`${fmtDate(S.event.date)} ${S.event.title}${S.event.venue?"（"+S.event.venue+"）":""}`; }
+function startPoll(){ clearInterval(pollT); pollT=setInterval(()=>{ if(!busy && !document.getElementById("dlgHost").innerHTML) load(false); },10000); }
 async function load(first){
-  let r; try{ r=await api("rc_state"); }catch(e){ if(first) showLogin("接続できませんでした。電波の良い場所でもう一度お試しください。"); else toast("通信できませんでした（自動で再試行します）"); return; }
+  let r;
+  try{ r=await api("rc_state"); }
+  catch(e){
+    // オフライン：キャッシュがあればそれで表示（受付操作は続行できる）
+    online=false;
+    const c=loadCachedState();
+    if(c&&c.s){ S=applyPending(c.s); setEvInfo(); render(); startPoll(); if(first) toast("オフライン表示中（前回読み込んだ名簿）"); }
+    else if(first){ showLogin("最初の1回はオンライン（電波のある場所）で開いてください。名簿を読み込むと、以降はオフラインでも受付できます。"); }
+    else render();
+    return;
+  }
   if(r.status===401){ LS.del(CODE_KEY); CODE=null; showLogin(r.data?.error||"受付コードが正しくありません"); return; }
-  if(r.status!==200){ if(first) showLogin("エラーが発生しました（"+r.status+"）"); return; }
-  S=r.data; LS.set(CODE_KEY, CODE);
-  document.getElementById("evInfo").textContent=`${fmtDate(S.event.date)} ${S.event.title}${S.event.venue?"（"+S.event.venue+"）":""}`;
-  render(); clearInterval(pollT); pollT=setInterval(()=>{ if(!busy && !document.getElementById("dlgHost").innerHTML) load(false); },10000);
+  if(r.status!==200){
+    online=false;
+    const c=loadCachedState();
+    if(c&&c.s){ S=applyPending(c.s); setEvInfo(); render(); startPoll(); }
+    else if(first){ showLogin("エラーが発生しました（"+r.status+"）"); }
+    return;
+  }
+  online=true; S=r.data; LS.set(CODE_KEY, CODE);
+  S=applyPending(S);     // ローカルの未送信分を上書きして表示
+  cacheState();
+  setEvInfo(); render(); startPoll();
+  flushPending();        // 未送信があれば送信を試みる
+}
+// 未送信キューをまとめて送信（接続復帰時・受付時・ポーリング時に呼ばれる）
+async function flushPending(){
+  if(flushing) return; const keys=Object.keys(pending); if(!keys.length) return;
+  flushing=true;
+  try{
+    const groupsByV={true:[],false:[]};
+    for(const k of keys) groupsByV[pending[k].v?"true":"false"].push(k);
+    for(const vb of ["true","false"]){
+      const ks=groupsByV[vb]; if(!ks.length) continue;
+      let r; try{ r=await api("rc_checkin",{keys:ks, v:(vb==="true")}); }
+      catch(e){ online=false; return; }           // まだオフライン→次回に再送
+      if(r.status===401){ showLogin(r.data?.error); return; }
+      if(r.status===200&&r.data?.ok){ online=true; ks.forEach(k=>{ delete pending[k]; }); Object.assign(S.checkin, r.data.updated); }
+      else { online=true; return; }               // サーバーエラー→キューに残して次回
+    }
+  } finally {
+    flushing=false; savePending(); cacheState();
+    if(!document.getElementById("dlgHost").innerHTML) render();
+  }
 }
 async function confirmSafe(){ if(await ask("この端末から受付コードを消して終了しますか？")){ LS.del(CODE_KEY); CODE=null; S=null; showLogin(); } }
 
@@ -116,10 +167,17 @@ function render(){
   let list=all; if(q) list=list.filter(g=>g.mem.some(hit)||(kk&&kanaKey(g.kana).includes(kk))); if(onlyYet) list=list.filter(g=>g.done<g.n);
   const focus=document.activeElement?.id==="q"; const pos=document.getElementById("q")?.selectionStart;
   document.getElementById("app").innerHTML=`
-  <div class="sticky"><input type="search" id="q" placeholder="お名前・ふりがなで検索（同伴者でもOK）" value="${esc(q)}" oninput="if(window.__ime)return;q=this.value;render()">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
-      <label class="muted"><input type="checkbox" ${onlyYet?"checked":""} onchange="onlyYet=this.checked;render()"> 未受付だけ</label>
-      <span class="sum">来場 ${doneP}/${persons}名 ・ 完了 ${doneG}/${all.length}組</span></div></div>
+  <div class="sticky">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:12.5px">
+      ${(()=>{ const pn=pendCount();
+        if(!online) return `<span style="color:var(--ng);font-weight:700">🔴 オフライン${pn?` ・ 未送信 ${pn}件`:"（受付は続けられます）"}</span>`;
+        if(pn) return `<span style="color:#9a6b00;font-weight:700">🟡 未送信 ${pn}件 <a href="#" onclick="flushPending();return false">今すぐ送信</a></span>`;
+        return `<span style="color:var(--ok);font-weight:700">🟢 オンライン</span>`; })()}
+      <span class="sum">来場 ${doneP}/${persons}名 ・ 完了 ${doneG}/${all.length}組</span>
+    </div>
+    <input type="search" id="q" placeholder="お名前・ふりがなで検索（同伴者でもOK）" value="${esc(q)}" oninput="if(window.__ime)return;q=this.value;render()">
+    <div style="margin-top:4px">
+      <label class="muted"><input type="checkbox" ${onlyYet?"checked":""} onchange="onlyYet=this.checked;render()"> 未受付だけ</label></div></div>
   <div class="card">${list.slice(0,150).map(g=>{
     const full=g.done===g.n, part=g.done>0&&!full; const compHit=q&&g.mem.some(m=>m.i>0&&hit(m)); const op=g.n>1&&(open.has(g.id)||compHit);
     const btn = g.n===1 ? `<button class="ckb" onclick="ck(['${g.mem[0].key}'],${!full})">${full?"✓ 受付済":"受付"}</button>`
@@ -140,11 +198,21 @@ function render(){
 function tog(id){ if(open.has(id)) open.delete(id); else open.add(id); render(); }
 async function ck(keys,v,noAsk){
   if(!v && !noAsk && !await ask("受付を取り消しますか？")) return;
-  busy=true; const before={}; keys.forEach(k=>{ before[k]=S.checkin[k]; S.checkin[k]={v,t:Date.now()}; }); render();   // 先に画面へ反映
-  try{ const r=await api("rc_checkin",{keys,v});
-    if(r.status===200&&r.data?.ok){ Object.assign(S.checkin, r.data.updated); toast(v?"受付しました":"取り消しました"); }
-    else { keys.forEach(k=>S.checkin[k]=before[k]); render(); if(r.status===401){ showLogin(r.data?.error); } else toast(r.data?.error||"保存できませんでした。もう一度押してください"); }
-  }catch(e){ keys.forEach(k=>S.checkin[k]=before[k]); render(); toast("通信できませんでした。もう一度押してください"); }
+  busy=true;
+  const t=Date.now();
+  keys.forEach(k=>{ S.checkin[k]={v,t}; pending[k]={v,t}; });   // ローカル反映＋未送信キューへ（オフラインでも消えない）
+  savePending(); cacheState(); render();
+  try{
+    const r=await api("rc_checkin",{keys,v});
+    if(r.status===200&&r.data?.ok){
+      keys.forEach(k=>{ if(pending[k]&&pending[k].t===t) delete pending[k]; });   // この送信ぶんをキューから外す（その後の変更は残す）
+      Object.assign(S.checkin, r.data.updated);
+      online=true; savePending(); cacheState(); render(); toast(v?"受付しました":"取り消しました");
+    } else if(r.status===401){ showLogin(r.data?.error); }
+    else { online=true; render(); toast(r.data?.error||"保存に失敗しました（接続時に自動で再送します）"); }   // キューに残す
+  }catch(e){
+    online=false; render(); toast("オフライン：未送信として保存しました（接続すると自動送信）");                // キューに残す
+  }
   finally{ busy=false; }
 }
 async function ckGroup(id){
@@ -152,6 +220,10 @@ async function ckGroup(id){
   if(full){ if(!await ask(`${g.name}様のグループ（${g.n}名）の受付をすべて取り消しますか？`)) return; return ck(g.mem.map(m=>m.key),false,true); }
   return ck(g.mem.filter(m=>!m.done).map(m=>m.key),true);
 }
+// 接続状態の変化を検知：復帰したら名簿更新＋未送信を自動送信
+online = (typeof navigator!=="undefined" && "onLine" in navigator) ? navigator.onLine : true;
+window.addEventListener("online", ()=>{ online=true; if(S){ if(!document.getElementById("dlgHost").innerHTML) render(); load(false); } });
+window.addEventListener("offline", ()=>{ online=false; if(S && !document.getElementById("dlgHost").innerHTML) render(); });
 // 起動：QRコードのURL（#c=コード）→ 端末に保存済みのコード → 入力画面
 (()=>{ const m=location.hash.match(/[#&]c=([^&]+)/);
   if(m){ CODE=decodeURIComponent(m[1]); history.replaceState(null,"",location.pathname); }
