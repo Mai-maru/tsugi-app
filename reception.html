@@ -30,18 +30,24 @@ button.btn{background:var(--accent);color:#fff;border:none;border-radius:10px;pa
 .tag.ng{background:var(--ng-soft);color:var(--ng)} .tag.ok{background:var(--ok-soft);color:var(--ok)} .tag.info{background:var(--info-soft);color:var(--info)}
 .tag.warn{background:var(--warn-soft);color:#7a5a08} .tag.perk{background:#fff4d6;color:#8a6d20;border:1px solid #e6cf8a} .tag.vis{background:#e5f3f3;color:#2f7a7a}
 .ckb{margin-left:auto;min-width:92px;padding:11px 8px;border-radius:10px;border:2px solid var(--accent);background:#fff;color:var(--accent-deep);font-weight:700;font-size:14px;font-family:inherit}
-.item.done .ckb{background:var(--ok);border-color:var(--ok);color:#fff}
+.item.done .ckb:not(.abs):not(.pxy){background:var(--ok);border-color:var(--ok);color:#fff}
 .item.absent{background:#ecebed} .item.absent .nm{color:#8a7580;text-decoration:line-through}
+.item.proxy{background:#eef6f0}
 .mem.absent{opacity:.65} .mem.absent .nm{text-decoration:line-through}
+.mem.proxy{color:#3f7a52}
 .tag.abs{background:#dedbe0;color:#6a5a63}
+.tag.pxy{background:#dce9df;color:#3f7a52}
 .ckb.sm{min-width:76px;padding:7px 6px;font-size:13px}
 .ckb.abs{min-width:66px;padding:11px 6px;border-color:#b2a0ab;color:#8a7580;font-size:13px}
 .ckb.abs.on{background:#8a7580;border-color:#8a7580;color:#fff}
 .ckb.abs.sm{min-width:58px;padding:7px 5px}
+.ckb.pxy{min-width:58px;padding:11px 6px;border-color:#9ec6ab;color:#3f7a52;font-size:13px}
+.ckb.pxy.on{background:#4f9e69;border-color:#4f9e69;color:#fff}
+.ckb.pxy.sm{min-width:52px;padding:7px 5px}
 .rt{display:flex;flex-direction:column;gap:5px;align-items:stretch}
 .mems{background:#fbf8fa;border-bottom:1px solid var(--line);padding:4px 12px 8px 26px}
 .mem{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
-.mem.done{color:var(--ok)} .mem.done .ckb{background:var(--ok);border-color:var(--ok);color:#fff}
+.mem.done{color:var(--ok)} .mem.done .ckb:not(.abs):not(.pxy){background:var(--ok);border-color:var(--ok);color:#fff}
 .mem.hit{background:#fff4d6;border-radius:6px}
 a{color:var(--accent-deep)}
 a.tel{display:inline-block;margin-top:2px;font-size:14px;font-weight:700;color:var(--info);text-decoration:none;border:1px solid var(--info-soft);background:var(--info-soft);border-radius:8px;padding:2px 8px}
@@ -87,6 +93,18 @@ function ask(msg){ return new Promise(res=>{ const h=document.getElementById("dl
   h.innerHTML=`<div class="ov"><div class="dlg"><div style="white-space:pre-wrap">${esc(msg)}</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
   <button class="btn" style="background:#fff;color:var(--accent-deep);border:1px solid var(--accent)" id="dNo">キャンセル</button><button class="btn" id="dYes">OK</button></div></div></div>`;
   const done=v=>{ h.innerHTML=""; res(v); }; document.getElementById("dYes").onclick=()=>done(true); document.getElementById("dNo").onclick=()=>done(false); }); }
+// テキスト入力ダイアログ（代理の方のお名前など）。キャンセルは null を返す
+function askText(msg, initial){ return new Promise(res=>{ const h=document.getElementById("dlgHost");
+  h.innerHTML=`<div class="ov"><div class="dlg"><div style="white-space:pre-wrap;margin-bottom:10px">${esc(msg)}</div>
+  <input type="text" id="dTxt" value="${esc(initial||"")}" style="width:100%;font-size:16px;padding:9px 11px;border:1px solid #d8c8d2;border-radius:10px;box-sizing:border-box">
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+  <button class="btn" style="background:#fff;color:var(--accent-deep);border:1px solid var(--accent)" id="dNo">キャンセル</button><button class="btn" id="dYes">OK</button></div></div></div>`;
+  const inp=document.getElementById("dTxt"); setTimeout(()=>{ try{ inp.focus(); }catch(e){} },0);
+  const done=v=>{ h.innerHTML=""; res(v); };
+  document.getElementById("dYes").onclick=()=>done(inp.value);
+  document.getElementById("dNo").onclick=()=>done(null);
+  inp.onkeydown=e=>{ if(e.key==="Enter") done(inp.value); if(e.key==="Escape") done(null); };
+}); }
 
 async function api(action, payload){
   const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+API_KEY,"apikey":API_KEY},
@@ -135,12 +153,12 @@ async function flushPending(){
   if(flushing) return; const keys=Object.keys(pending); if(!keys.length) return;
   flushing=true;
   try{
-    // (v, st) の組み合わせごとにまとめて送信
+    // (v, st, 代理名) の組み合わせごとにまとめて送信
     const grp={};
-    for(const k of keys){ const g=(pending[k].v?"1":"0")+"|"+(pending[k].st||""); (grp[g]=grp[g]||[]).push(k); }
+    for(const k of keys){ const p=pending[k]; const g=(p.v?"1":"0")+"|"+(p.st||"")+"|"+(p.sub||""); (grp[g]=grp[g]||[]).push(k); }
     for(const g of Object.keys(grp)){
-      const ks=grp[g]; const i=g.indexOf("|"); const v=g.slice(0,i)==="1", st=g.slice(i+1);
-      let r; try{ r=await api("rc_checkin",{keys:ks, v, st}); }
+      const ks=grp[g]; const parts=g.split("|"); const v=parts[0]==="1", st=parts[1], sub=parts.slice(2).join("|");
+      let r; try{ r=await api("rc_checkin",{keys:ks, v, st, sub}); }
       catch(e){ online=false; return; }           // まだオフライン→次回に再送
       if(r.status===401){ showLogin(r.data?.error); return; }
       if(r.status===200&&r.data?.ok){ online=true; ks.forEach(k=>{ delete pending[k]; }); Object.assign(S.checkin, r.data.updated); }
@@ -155,8 +173,8 @@ async function confirmSafe(){ if(await ask("この端末から受付コードを
 
 function groups(){
   const ck=S.checkin||{};
-  return S.groups.map(g=>{ const mem=g.members.map((m,i)=>{ const c=ck[g.id+":"+i]||{}; return {...m,i,key:g.id+":"+i,done:!!c.v,absent:c.st==="absent"}; });
-    return {...g, mem, n:mem.length, done:mem.filter(x=>x.done).length, absent:mem.filter(x=>x.absent).length}; })
+  return S.groups.map(g=>{ const mem=g.members.map((m,i)=>{ const c=ck[g.id+":"+i]||{}; return {...m,i,key:g.id+":"+i,done:!!c.v,absent:c.st==="absent",sub:(c.v&&c.sub)?c.sub:""}; });
+    return {...g, mem, n:mem.length, done:mem.filter(x=>x.done).length, absent:mem.filter(x=>x.absent).length, proxy:mem.filter(x=>x.sub).length}; })
    .sort((a,b)=>kanaKey(a.kana||a.name).localeCompare(kanaKey(b.kana||b.name),"ja"));
 }
 // グループ全員の欠席を切り替え（当日キャンセル・急病など）
@@ -178,7 +196,7 @@ function seatsText(mem){
     return `${k}-${parts.join(",")}`; }).join("／");
 }
 function render(){
-  const all=groups(); const persons=all.reduce((s,g)=>s+g.n,0), doneP=all.reduce((s,g)=>s+g.done,0), absentP=all.reduce((s,g)=>s+g.absent,0), doneG=all.filter(g=>g.done+g.absent===g.n).length;
+  const all=groups(); const persons=all.reduce((s,g)=>s+g.n,0), doneP=all.reduce((s,g)=>s+g.done,0), absentP=all.reduce((s,g)=>s+g.absent,0), proxyP=all.reduce((s,g)=>s+g.proxy,0), doneG=all.filter(g=>g.done+g.absent===g.n).length;
   const qk=nameKey(q), kk=kanaKey(q); const hit=m=>q && (nameKey(m.name).includes(qk) || (kk && kanaKey(m.kana).includes(kk)));
   let list=all; if(q) list=list.filter(g=>g.mem.some(hit)||(kk&&kanaKey(g.kana).includes(kk))); if(onlyYet) list=list.filter(g=>g.done+g.absent<g.n);
   const focus=document.activeElement?.id==="q"; const pos=document.getElementById("q")?.selectionStart;
@@ -189,26 +207,30 @@ function render(){
         if(!online) return `<span style="color:var(--ng);font-weight:700">🔴 オフライン${pn?` ・ 未送信 ${pn}件`:"（受付は続けられます）"}</span>`;
         if(pn) return `<span style="color:#9a6b00;font-weight:700">🟡 未送信 ${pn}件 <a href="#" onclick="flushPending();return false">今すぐ送信</a></span>`;
         return `<span style="color:var(--ok);font-weight:700">🟢 オンライン</span>`; })()}
-      <span class="sum">来場 ${doneP}/${persons}名${absentP?` ・ <span style="color:#8a7580">欠席 ${absentP}名</span>`:""} ・ 完了 ${doneG}/${all.length}組</span>
+      <span class="sum">来場 ${doneP}/${persons}名${proxyP?`<span style="color:#3f7a52">（代理 ${proxyP}）</span>`:""}${absentP?` ・ <span style="color:#8a7580">欠席 ${absentP}名</span>`:""} ・ 完了 ${doneG}/${all.length}組</span>
     </div>
     <input type="search" id="q" placeholder="お名前・ふりがなで検索（同伴者でもOK）" value="${esc(q)}" oninput="if(window.__ime)return;q=this.value;render()">
     <div style="margin-top:4px">
       <label class="muted"><input type="checkbox" ${onlyYet?"checked":""} onchange="onlyYet=this.checked;render()"> 未受付だけ</label></div></div>
   <div class="card">${list.slice(0,150).map(g=>{
-    const allAbs=g.n>0&&g.absent===g.n;
+    const allAbs=g.n>0&&g.absent===g.n; const m0=g.mem[0], self0=m0.done&&!m0.sub;
     const full=g.done===g.n, part=g.done>0&&g.done<g.n; const compHit=q&&g.mem.some(m=>m.i>0&&hit(m)); const op=g.n>1&&(open.has(g.id)||compHit);
-    const mainBtn = g.n===1 ? `<button class="ckb" onclick="ck(['${g.mem[0].key}'],${!g.mem[0].done})">${g.mem[0].done?"✓ 受付済":"受付"}</button>`
-      : `<button class="ckb" onclick="ckGroup('${g.id}')">${full?"✓ 全員済":part?`残り${g.n-g.done}名を受付`:`全員受付（${g.n}名）`}</button>`;
-    const absBtn = `<button class="ckb abs${allAbs?" on":""}" onclick="absGroup('${g.id}')">${allAbs?"欠席 取消":"欠席"}</button>`;
-    return `<div class="item ${allAbs?"absent":full?"done":part?"part":""}"><div style="flex:1;min-width:0">
-      <div class="nm">${esc(g.name)}<span style="font-weight:400;font-size:13px">様</span> ${allAbs?`<span class="tag abs">欠席</span>`:g.n>1?`<span class="tag ${full?"ok":part?"warn":"info"}">${g.done}/${g.n}名${g.absent?`・欠${g.absent}`:""}</span>`:""}</div>
+    const btns = g.n===1
+      ? `<button class="ckb" onclick="ck(['${m0.key}'],${!self0})">${self0?"✓ 受付済":"受付"}</button>`
+        +`<button class="ckb pxy${m0.sub?" on":""}" onclick="${m0.sub?`ck(['${m0.key}'],false,true)`:`setProxy('${m0.key}')`}">代理</button>`
+        +`<button class="ckb abs${m0.absent?" on":""}" onclick="ck(['${m0.key}'],false,true,'${m0.absent?"":"absent"}')">${m0.absent?"取消":"欠席"}</button>`
+      : `<button class="ckb" onclick="ckGroup('${g.id}')">${full?"✓ 全員済":part?`残り${g.n-g.done}名を受付`:`全員受付（${g.n}名）`}</button>`
+        +`<button class="ckb abs${allAbs?" on":""}" onclick="absGroup('${g.id}')">${allAbs?"欠席 取消":"欠席"}</button>`;
+    return `<div class="item ${allAbs?"absent":(g.n===1&&m0.sub)?"proxy":full?"done":part?"part":""}"><div style="flex:1;min-width:0">
+      <div class="nm">${esc(g.name)}<span style="font-weight:400;font-size:13px">様</span> ${allAbs?`<span class="tag abs">欠席</span>`:(g.n===1&&m0.sub)?`<span class="tag pxy">代理：${esc(m0.sub)}様</span>`:g.n>1?`<span class="tag ${full?"ok":part?"warn":"info"}">${g.done}/${g.n}名${g.absent?`・欠${g.absent}`:""}${g.proxy?`・代${g.proxy}`:""}</span>`:""}</div>
       <div class="sub">${esc(g.kana)}${seatsText(g.mem)?` ／ 💺${esc(seatsText(g.mem))}`:""}</div>
       ${g.phone?`<div>${telHtml(g.phone)}</div>`:""}
       <div>${g.visitor?`<span class="tag vis">ご見学 ${esc(g.affiliation)}</span>`:""}${g.unpaid?`<span class="tag ng">未入金</span>`:""}${g.perks.map(p=>`<span class="tag perk">★${p}名以上特典</span>`).join("")}${g.mem.filter(m=>m.prevWin).map(m=>`<span class="tag warn">🎁前回当選：${esc(m.name)}様</span>`).join("")}</div>
-      ${g.n>1?`<a href="#" class="muted" onclick="tog('${g.id}');return false">${op?"▲ 閉じる":"▼ 1人ずつ 受付・欠席（別々にご来場の場合）"}</a>`:""}</div>
-      <div class="rt">${mainBtn}${absBtn}</div></div>
-      ${op?`<div class="mems">${g.mem.map(m=>`<div class="mem ${m.done?"done":""} ${m.absent?"absent":""} ${hit(m)?"hit":""}"><span style="flex:1">${m.i===0?"👑 ":""}${esc(m.name)}様 <span class="muted">${esc(m.kana)}${m.seat?" 💺"+esc(m.seat):""}</span>${m.absent?' <span class="tag abs">欠席</span>':""}</span>
-        <button class="ckb sm" onclick="ck(['${m.key}'],${!m.done})">${m.done?"✓ 受付済":"受付"}</button>
+      ${g.n>1?`<a href="#" class="muted" onclick="tog('${g.id}');return false">${op?"▲ 閉じる":"▼ 1人ずつ 受付・欠席・代理（別々にご来場の場合）"}</a>`:""}</div>
+      <div class="rt">${btns}</div></div>
+      ${op?`<div class="mems">${g.mem.map(m=>`<div class="mem ${m.sub?"proxy":m.done?"done":""} ${m.absent?"absent":""} ${hit(m)?"hit":""}"><span style="flex:1">${m.i===0?"👑 ":""}${esc(m.name)}様 <span class="muted">${esc(m.kana)}${m.seat?" 💺"+esc(m.seat):""}</span>${m.sub?` <span class="tag pxy">代理：${esc(m.sub)}様</span>`:m.absent?' <span class="tag abs">欠席</span>':""}</span>
+        <button class="ckb sm" onclick="ck(['${m.key}'],${!(m.done&&!m.sub)})">${(m.done&&!m.sub)?"✓ 受付済":"受付"}</button>
+        <button class="ckb pxy sm${m.sub?" on":""}" onclick="${m.sub?`ck(['${m.key}'],false,true)`:`setProxy('${m.key}')`}">代理</button>
         <button class="ckb abs sm${m.absent?" on":""}" onclick="ck(['${m.key}'],false,true,'${m.absent?"":"absent"}')">${m.absent?"取消":"欠席"}</button></div>`).join("")}</div>`:""}`;
   }).join("")||`<p class="muted" style="padding:12px">該当なし</p>`}</div>
   ${list.length>150?`<p class="muted">先頭150組を表示中。検索で絞り込んでください。</p>`:""}
@@ -216,20 +238,29 @@ function render(){
   if(focus){ const i=document.getElementById("q"); i.focus(); try{ i.setSelectionRange(pos,pos); }catch(e){} }
 }
 function tog(id){ if(open.has(id)) open.delete(id); else open.add(id); render(); }
-// v=受付済み(true/false) ／ st="absent"で欠席。受付＝v:true(st空)、欠席＝v:false,st:"absent"、未受付へ戻す＝v:false,st:""
-async function ck(keys,v,noAsk,st){
-  st=st||"";
+// 代理で来られた方を受付（本人は欠席だが席は埋まる＝来場扱い）。お名前を記録
+async function setProxy(key){
+  const name=await askText("代理で来られた方のお名前を入力してください。","");
+  if(name===null) return;                         // キャンセル
+  const nm=name.replace(/[\s　]+/g," ").trim();
+  if(!nm){ toast("お名前が未入力です"); return; }
+  return ck([key], true, true, "", nm);           // 受付(v:true)＋代理名。欠席ステータスは付けない
+}
+// v=受付済み(true/false) ／ st="absent"で欠席 ／ sub=代理の方のお名前。受付＝v:true、欠席＝v:false,st:"absent"、代理＝v:true,sub:"名前"、未受付へ戻す＝v:false
+async function ck(keys,v,noAsk,st,sub){
+  st=st||""; sub=sub||"";
   if(!v && !st && !noAsk && !await ask("受付を取り消しますか？")) return;
   busy=true;
   const t=Date.now();
-  keys.forEach(k=>{ const val={v,t}; if(st) val.st=st; S.checkin[k]=val; const p={v,t}; if(st) p.st=st; pending[k]=p; });
+  keys.forEach(k=>{ const val={v,t}; if(st) val.st=st; if(v&&sub) val.sub=sub; S.checkin[k]=val;
+    const p={v,t}; if(st) p.st=st; if(v&&sub) p.sub=sub; pending[k]=p; });
   savePending(); cacheState(); render();
   try{
-    const r=await api("rc_checkin",{keys,v,st});
+    const r=await api("rc_checkin",{keys,v,st,sub});
     if(r.status===200&&r.data?.ok){
       keys.forEach(k=>{ if(pending[k]&&pending[k].t===t) delete pending[k]; });   // この送信ぶんをキューから外す（その後の変更は残す）
       Object.assign(S.checkin, r.data.updated);
-      online=true; savePending(); cacheState(); render(); toast(st==="absent"?"欠席にしました":v?"受付しました":"取り消しました");
+      online=true; savePending(); cacheState(); render(); toast(sub?"代理で受付しました":st==="absent"?"欠席にしました":v?"受付しました":"取り消しました");
     } else if(r.status===401){ showLogin(r.data?.error); }
     else { online=true; render(); toast(r.data?.error||"保存に失敗しました（接続時に自動で再送します）"); }   // キューに残す
   }catch(e){
