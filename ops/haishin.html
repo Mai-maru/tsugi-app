@@ -44,6 +44,11 @@ textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 
 #loginOverlay .box{background:#fff;border-radius:16px;padding:26px 22px;max-width:360px;width:100%;text-align:center}
 #loginOverlay h1{font-family:"Yu Mincho",serif;color:var(--accent-deep);font-size:19px;margin-bottom:4px}
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#3a2e35;color:#fff;padding:9px 16px;border-radius:99px;font-size:13px;display:none;z-index:150}
+#dlg .ov{position:fixed;inset:0;background:rgba(40,20,30,.45);z-index:160;display:flex;align-items:flex-start;justify-content:center;padding:4vh 10px;overflow-y:auto}
+#dlg .box2{background:#fff;border-radius:14px;max-width:640px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25);overflow:hidden}
+#dlg .hd{background:var(--accent-deep);color:#fff;padding:11px 16px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+#dlg .hd button{background:none;border:none;color:#fff;font-size:20px;cursor:pointer}
+#dlg .bd{padding:14px 16px}
 </style>
 </head>
 <body>
@@ -62,6 +67,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 
   <span id="saveState"></span>
 </header>
 <main id="app"></main>
+<div id="dlg"></div>
 <div id="toast"></div>
 
 <script>
@@ -70,9 +76,16 @@ const SKY_URL = "https://arezgremacymxvqwhzrv.supabase.co/functions/v1/skystage"
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyZXpncmVtYWN5bXh2cXdoenJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDYzNjMsImV4cCI6MjA5Nzg4MjM2M30.htZGTQQQi31Q_0jJOP-xKVXNdzyUdq8c0geitp-urqQ";
 const PW_KEY  = "isolla_tsugi_pw";
 const CAST = "美空真瑠";
+// 定型文の初期値（サーバーに保存が無いときのフォールバック。編集はサーバー＝skystageに保存）
+const DEF_TPL = {
+  title: "🌸 タカラヅカスカイステージ 真瑠くん出演情報 🌸",
+  intro: "CERCLE Mi-Sol-La 会員のみなさまへ✨\n真瑠くんがタカラヅカスカイステージで出演・関連する放送をまとめました。ご視聴・録画のご参考にぜひお役立てください！",
+  footer: "──────────\nご視聴後はぜひご感想をSNSなどにシェアして真瑠くんの出演番組を応援いただけますと幸いです😊\n※放送日時は変更になる場合があります。最新はスカイステージ番組表でご確認ください。\n※番組画面のアップロードなど著作権・肖像権侵害行為やネタバレ行為はなさらないよう十分ご注意ください。",
+};
 let PASSWORD = null;
-let allRows = [], mode = "week", loading = false, lastFetch = null;
+let allRows = [], mode = "custom", loading = false, lastFetch = null;
 let cStart = "", cEnd = "";   // 期間を指定（custom）の開始日・終了日
+let tpl = null;               // 配信文の定型文（サーバーから取得）
 
 const LS={get(k){try{return localStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{localStorage.setItem(k,v);}catch(e){}}, del(k){try{localStorage.removeItem(k);}catch(e){}}};
 const SS={get(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}, del(k){try{sessionStorage.removeItem(k);}catch(e){}}};
@@ -96,41 +109,35 @@ async function tryLogin(pw, remember, silent){
   const status=document.getElementById("loginStatus"); if(!silent) status.textContent="確認中…";
   PASSWORD=pw;
   let r; try{ r=await api("login"); }catch(e){ status.textContent="接続できませんでした"; PASSWORD=null; return false; }
-  if(r.status===200 && r.data?.ok){ if(remember && !SS.get(PW_SESSION)) LS.set(PW_KEY,pw); document.getElementById("loginOverlay").style.display="none"; renderShell(); loadBroadcasts(true); return true; }
+  if(r.status===200 && r.data?.ok){ if(remember && !SS.get(PW_SESSION)) LS.set(PW_KEY,pw); document.getElementById("loginOverlay").style.display="none"; renderShell(); loadTpl(); loadBroadcasts(true); return true; }
   PASSWORD=null; status.textContent=r.status===401?"パスワードが違います":"エラー（"+r.status+"）"; return false;
 }
 function doLogin(){ const pw=document.getElementById("loginPw").value; if(!pw) return; tryLogin(pw, document.getElementById("loginRemember").checked, false); }
 
 /* ---------- 期間の計算・整形 ---------- */
-function weekRange(){
-  const t=new Date(); t.setHours(0,0,0,0);
-  const toSun=(7-t.getDay())%7;              // 今度の（今日が日曜なら今日の）日曜
-  const start=new Date(t); start.setDate(t.getDate()+toSun);
-  const end=new Date(start); end.setDate(start.getDate()+6); end.setHours(23,59,59,999);
-  return {start,end};
-}
 function parseDt(s){ const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/); return m?new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]):null; }
 function filtered(){
   let rows=allRows.map(r=>({...r,_dt:parseDt(r.datetime)})).filter(r=>r._dt);
   rows.sort((a,b)=>a._dt-b._dt);
-  if(mode==="week"){ const {start,end}=weekRange(); rows=rows.filter(r=>r._dt>=start&&r._dt<=end); }
-  else if(mode==="upcoming"){ const t=new Date(); t.setHours(0,0,0,0); rows=rows.filter(r=>r._dt>=t); }
-  else if(mode==="custom"){ const s=cStart?new Date(cStart+"T00:00:00"):null, e=cEnd?new Date(cEnd+"T23:59:59"):null; rows=rows.filter(r=>(!s||r._dt>=s)&&(!e||r._dt<=e)); }
+  if(mode==="custom"){ const s=cStart?new Date(cStart+"T00:00:00"):null, e=cEnd?new Date(cEnd+"T23:59:59"):null; rows=rows.filter(r=>(!s||r._dt>=s)&&(!e||r._dt<=e)); }
+  // mode==="all" はすべて（絞り込みなし）
   return rows;
 }
 function minTxt(r){ return r.minutes?`（${r.minutes}分）`:""; }
 function jimakuTxt(r){ return r.jimaku?" [字幕]":""; }
 // LINE配信文のひな形（Maiさんの文面）。真瑠くん／タカラヅカスカイステージ表記・SNS応援・著作権の注意つき
 function fmtRow(r){ const d=r._dt; return `📺 ${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]}) ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}〜 ${r.title}${minTxt(r)}${jimakuTxt(r)}`; }
-function buildText(rows){
+function weeksSpan(rows){ if(!rows.length) return 0; const a=rows[0]._dt, b=rows[rows.length-1]._dt; const days=Math.floor((b-a)/86400000)+1; return Math.max(1, Math.ceil(days/7)); }
+function dateLineOf(rows){
   const now=new Date();
-  const periodWord = (mode==="week") ? "今週の" : (mode==="custom" ? "" : "今後の");
-  let line2 = `（${now.getMonth()+1}月${now.getDate()}日 時点）`;
-  if(mode==="custom" && cStart && cEnd){ const s=new Date(cStart+"T00:00:00"), e=new Date(cEnd+"T00:00:00"); line2=`（${s.getMonth()+1}/${s.getDate()}〜${e.getMonth()+1}/${e.getDate()} の放送）`; }
-  const head = `🌸 タカラヅカスカイステージ 真瑠くん出演情報 🌸\n${line2}\n\nCERCLE Mi-Sol-La 会員のみなさまへ✨\n真瑠くんがタカラヅカスカイステージで出演・関連する${periodWord}放送をまとめました。ご視聴・録画のご参考にぜひお役立てください！\n`;
-  const foot = `\n\n──────────\nご視聴後はぜひご感想をSNSなどにシェアして真瑠くんの出演番組を応援いただけますと幸いです😊\n※放送日時は変更になる場合があります。最新はスカイステージ番組表でご確認ください。\n※番組画面のアップロードなど著作権・肖像権侵害行為やネタバレ行為はなさらないよう十分ご注意ください。`;
-  const body = rows.length ? rows.map(fmtRow).join("\n") : (mode==="week" ? "今週は対象の放送が見つかりませんでした。" : "（対象の放送は見つかりませんでした）");
-  return head + "\n" + body + foot;
+  if(mode==="custom" && cStart && cEnd){ const s=new Date(cStart+"T00:00:00"), e=new Date(cEnd+"T00:00:00"); return `（${s.getMonth()+1}/${s.getDate()}〜${e.getMonth()+1}/${e.getDate()} の放送）`; }
+  if(mode==="all"){ if(!rows.length) return `（${now.getMonth()+1}月${now.getDate()}日 時点）`; const a=rows[0]._dt, b=rows[rows.length-1]._dt; return `（${a.getMonth()+1}/${a.getDate()}〜${b.getMonth()+1}/${b.getDate()}・約${weeksSpan(rows)}週間分）`; }
+  return `（${now.getMonth()+1}月${now.getDate()}日 時点）`;
+}
+function buildText(rows){
+  const T = tpl || DEF_TPL;
+  const body = rows.length ? rows.map(fmtRow).join("\n") : "（対象の放送は見つかりませんでした）";
+  return `${T.title}\n${dateLineOf(rows)}\n\n${T.intro}\n\n${body}\n\n${T.footer}`;
 }
 
 /* ---------- 画面 ---------- */
@@ -140,12 +147,13 @@ function renderShell(){
   <div class="card">
     <div class="row" style="justify-content:space-between">
       <div class="seg" id="modeSeg">
-        <button data-m="week">今週（日〜土）</button>
-        <button data-m="upcoming">今日以降</button>
-        <button data-m="all">全期間</button>
         <button data-m="custom">期間を指定</button>
+        <button data-m="all">全期間</button>
       </div>
-      <button class="btn ghost sm" onclick="loadBroadcasts(false)">🔄 最新を取得</button>
+      <div class="flex">
+        <button class="btn ghost sm" onclick="openTplEdit()">⚙ 定型文</button>
+        <button class="btn ghost sm" onclick="loadBroadcasts(false)">🔄 最新を取得</button>
+      </div>
     </div>
     <div id="customRow" class="row" style="margin-top:8px;display:none">
       <div><label class="muted" style="font-size:11.5px">開始日</label><br><input type="date" id="cFrom" onchange="cStart=this.value;render()"></div>
@@ -168,6 +176,39 @@ async function loadBroadcasts(first){
   render();
 }
 function renderError(msg){ const el=document.getElementById("result"); if(el) el.innerHTML=`<div class="notice ng">${esc(msg)}</div>`; }
+/* ---------- 配信文の定型（サーバー共有） ---------- */
+async function loadTpl(){
+  let r; try{ r=await skyApi({action:"tpl_get"}); }catch(e){ tpl=tpl||DEF_TPL; return; }
+  tpl = (r.status===200 && r.data?.ok && r.data.tpl) ? r.data.tpl : (tpl||DEF_TPL);
+  if(document.getElementById("result")) render();
+}
+function openTplEdit(){
+  const T = tpl || DEF_TPL;
+  document.getElementById("dlg").innerHTML=`<div class="ov" onclick="if(event.target===this)closeDlg()"><div class="box2">
+    <div class="hd"><span>配信文の定型を編集</span><button onclick="closeDlg()">×</button></div>
+    <div class="bd">
+      <p class="muted" style="margin-bottom:8px">保存すると、次回からの配信文がこの内容で作られます（全端末で共通）。日付や放送の一覧は自動で入るので、ここには書かなくて大丈夫です。</p>
+      <label class="muted" style="font-size:12px">タイトル（1行目）</label>
+      <textarea id="tp_title" rows="2">${esc(T.title)}</textarea>
+      <label class="muted" style="font-size:12px;margin-top:8px;display:block">導入文（あいさつ・説明）</label>
+      <textarea id="tp_intro" rows="4">${esc(T.intro)}</textarea>
+      <label class="muted" style="font-size:12px;margin-top:8px;display:block">締め（フッター・注意書き）</label>
+      <textarea id="tp_footer" rows="6">${esc(T.footer)}</textarea>
+      <div class="flex" style="justify-content:space-between;margin-top:12px">
+        <button class="btn ghost sm" onclick="resetTplFields()">既定の文面に戻す</button>
+        <div class="flex"><button class="btn ghost sm" onclick="closeDlg()">キャンセル</button><button class="btn sm" onclick="saveTpl()">保存</button></div>
+      </div>
+    </div></div></div>`;
+}
+function closeDlg(){ document.getElementById("dlg").innerHTML=""; }
+function resetTplFields(){ document.getElementById("tp_title").value=DEF_TPL.title; document.getElementById("tp_intro").value=DEF_TPL.intro; document.getElementById("tp_footer").value=DEF_TPL.footer; }
+async function saveTpl(){
+  const t={ title:document.getElementById("tp_title").value.trim(), intro:document.getElementById("tp_intro").value.replace(/\s+$/,""), footer:document.getElementById("tp_footer").value.replace(/\s+$/,"") };
+  let r; try{ r=await skyApi({action:"tpl_set", tpl:t}); }catch(e){ toast("保存できませんでした（接続）"); return; }
+  if(r.status===200 && r.data?.ok){ tpl=r.data.tpl; closeDlg(); render(); toast("定型文を保存しました"); }
+  else if(r.status===401){ toast("ログインが必要です"); }
+  else { toast("保存に失敗しました"); }
+}
 function render(){
   document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.m===mode));
   const cr=document.getElementById("customRow");
