@@ -116,25 +116,15 @@ function filtered(){
 }
 function minTxt(r){ return r.minutes?`（${r.minutes}分）`:""; }
 function jimakuTxt(r){ return r.jimaku?" [字幕]":""; }
+// LINE配信文のひな形（Maiさんの文面）。真瑠くん／タカラヅカスカイステージ表記・SNS応援・著作権の注意つき
+function fmtRow(r){ const d=r._dt; return `📺 ${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]}) ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}〜 ${r.title}${minTxt(r)}${jimakuTxt(r)}`; }
 function buildText(rows){
-  const name=CAST;
-  if(mode==="week"){
-    const {start,end}=weekRange();
-    const head=`🌸 今週のスカイステージ 📺 ${name} さん 出演放送 🌸\n（${start.getMonth()+1}/${start.getDate()}(${WD[start.getDay()]})〜${end.getMonth()+1}/${end.getDate()}(${WD[end.getDay()]})）\n\nCERCLE Mi-Sol-La 会員のみなさまへ✨\n今週の${name}さん出演・関連放送をまとめました。録画のご参考にどうぞ！\n`;
-    const tail=`\n\n──────────\n※放送日時は変更になる場合があります。最新はスカイステージ番組表でご確認ください。\n🎀 今週も一緒に応援していきましょう！`;
-    if(!rows.length) return head+"\n今週は対象の放送が見つかりませんでした。\n"+tail;
-    const lines=[]; let cur=null;
-    for(const r of rows){ const d=r._dt; const key=d.toDateString();
-      if(key!==cur){ cur=key; lines.push(`■ ${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`); }
-      lines.push(`　${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}〜 ${r.title}${minTxt(r)}${jimakuTxt(r)}`);
-    }
-    return head+"\n"+lines.join("\n")+tail;
-  }
-  const head=`🌸 スカイステージ ${name} さん 出演放送のお知らせ 🌸\n\nCERCLE Mi-Sol-La 会員のみなさまへ✨\n${name}さんが出演・関連する放送をまとめました。録画のご参考にどうぞ！\n`;
-  const tail=`\n\n──────────\n※放送日時は変更になる場合があります。最新はスカイステージ番組表でご確認ください。\n🎀 これからも一緒に応援していきましょう！`;
-  if(!rows.length) return head+"\n（対象の放送は見つかりませんでした）"+tail;
-  const body=rows.map(r=>{ const d=r._dt; return `📺 ${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]}) ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}〜 ${r.title}${minTxt(r)}${jimakuTxt(r)}`; }).join("\n");
-  return head+"\n"+body+tail;
+  const now=new Date();
+  const period = (mode==="week") ? "今週" : "今後";
+  const head = `🌸 タカラヅカスカイステージ 真瑠くん出演情報 🌸\n（${now.getMonth()+1}月${now.getDate()}日 時点）\n\nCERCLE Mi-Sol-La 会員のみなさまへ✨\n真瑠くんがタカラヅカスカイステージで出演・関連する${period}の放送をまとめました。ご視聴・録画のご参考にぜひお役立てください！\n`;
+  const foot = `\n\n──────────\nご視聴後はぜひご感想をSNSなどにシェアして真瑠くんの出演番組を応援いただけますと幸いです😊\n※放送日時は変更になる場合があります。最新はスカイステージ番組表でご確認ください。\n※番組画面のアップロードなど著作権・肖像権侵害行為やネタバレ行為はなさらないよう十分ご注意ください。`;
+  const body = rows.length ? rows.map(fmtRow).join("\n") : (mode==="week" ? "今週は対象の放送が見つかりませんでした。" : "（対象の放送は見つかりませんでした）");
+  return head + "\n" + body + foot;
 }
 
 /* ---------- 画面 ---------- */
