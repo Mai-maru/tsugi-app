@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>CERCLE Mi-Sol-La 放送案内</title>
+<style>
+:root{
+  --bg:#faf7f4; --panel:#ffffff; --ink:#3a2e35; --sub:#8a7580;
+  --accent:#a4456e; --accent-soft:#f3dce6; --accent-deep:#7c2d52;
+  --ok:#2e8b57; --ok-soft:#ddf0e4; --ng:#c0392b; --ng-soft:#fbe3df;
+  --warn:#b8860b; --warn-soft:#faf0d2; --info:#4169aa; --info-soft:#e2eaf8;
+  --line:#e8dfe4; --radius:12px; --shadow:0 2px 10px rgba(90,50,70,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6}
+header{background:linear-gradient(135deg,#4a1f35 0%,#7c2d52 55%,#a4456e 100%);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:18px;font-weight:700;letter-spacing:.06em;font-family:"Yu Mincho","Hiragino Mincho ProN",serif}
+header a.home{color:#fff;text-decoration:none;font-size:12px;opacity:.85;border:1px solid rgba(255,255,255,.5);border-radius:99px;padding:2px 10px}
+#saveState{font-size:11.5px;opacity:.9;margin-left:auto}
+main{max-width:860px;margin:0 auto;padding:18px 16px 80px}
+h2{font-size:17px;color:var(--accent-deep);margin:4px 0 12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13.5px;cursor:pointer;font-family:inherit;font-weight:600}
+button.btn:hover{opacity:.88}
+button.btn.ghost{background:#fff;color:var(--accent-deep);border:1px solid var(--accent)}
+button.btn.sm{padding:5px 10px;font-size:12.5px}
+.seg{display:inline-flex;border:1px solid var(--accent);border-radius:8px;overflow:hidden}
+.seg button{border:none;background:#fff;color:var(--accent-deep);padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.seg button.on{background:var(--accent);color:#fff;font-weight:700}
+input[type=text],input[type=password]{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink)}
+textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink);resize:vertical;line-height:1.7}
+.muted{color:var(--sub);font-size:12.5px}
+.notice{padding:9px 13px;border-radius:8px;font-size:13px;margin:8px 0}
+.notice.info{background:var(--info-soft);color:var(--info)}.notice.warn{background:var(--warn-soft);color:#7a5a08}.notice.ng{background:var(--ng-soft);color:var(--ng)}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;margin-left:6px}
+.tag.jimaku{background:var(--info-soft);color:var(--info)}
+.daygroup{margin:10px 0 2px;font-weight:700;color:var(--accent-deep);border-bottom:1px solid var(--accent-soft);padding-bottom:3px}
+.bc{padding:5px 0 5px 4px;border-bottom:1px dashed var(--line)}
+.bc .t{font-weight:700}
+#loginOverlay{position:fixed;inset:0;background:linear-gradient(135deg,#4a1f35,#a4456e);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+#loginOverlay .box{background:#fff;border-radius:16px;padding:26px 22px;max-width:360px;width:100%;text-align:center}
+#loginOverlay h1{font-family:"Yu Mincho",serif;color:var(--accent-deep);font-size:19px;margin-bottom:4px}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#3a2e35;color:#fff;padding:9px 16px;border-radius:99px;font-size:13px;display:none;z-index:150}
+</style>
+</head>
+<body>
+<div id="loginOverlay"><div class="box">
+  <h1>CERCLE Mi-Sol-La</h1>
+  <p class="muted" style="margin-bottom:14px">放送案内（取次システムと同じパスワード）</p>
+  <input type="password" id="loginPw" placeholder="パスワード" style="width:100%" onkeydown="if(event.key==='Enter')doLogin()">
+  <label class="muted" style="display:block;margin:8px 0"><input type="checkbox" id="loginRemember" checked> ログイン状態を保持</label>
+  <button class="btn" style="width:100%" onclick="doLogin()">ログイン</button>
+  <p id="loginStatus" class="muted" style="margin-top:8px;color:var(--ng)"></p>
+</div></div>
+
+<header>
+  <a class="home" href="./index.html">← 運営アプリ</a>
+  <h1>放送案内</h1>
+  <span id="saveState"></span>
+</header>
+<main id="app"></main>
+<div id="toast"></div>
+
+<script>
+const API_URL = "https://arezgremacymxvqwhzrv.supabase.co/functions/v1/tsugi-api";
+const SKY_URL = "https://arezgremacymxvqwhzrv.supabase.co/functions/v1/skystage";
+const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyZXpncmVtYWN5bXh2cXdoenJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDYzNjMsImV4cCI6MjA5Nzg4MjM2M30.htZGTQQQi31Q_0jJOP-xKVXNdzyUdq8c0geitp-urqQ";
+const PW_KEY  = "isolla_tsugi_pw";
+const CAST = "美空真瑠";
+let PASSWORD = null;
+let allRows = [], mode = "week", loading = false, lastFetch = null;
+
+const LS={get(k){try{return localStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{localStorage.setItem(k,v);}catch(e){}}, del(k){try{localStorage.removeItem(k);}catch(e){}}};
+const SS={get(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}, del(k){try{sessionStorage.removeItem(k);}catch(e){}}};
+const PW_SESSION="cercle_ops_pw";
+const WD=["日","月","火","水","木","金","土"];
+function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",2200); }
+function setSync(msg){ document.getElementById("saveState").textContent=msg||""; }
+
+async function api(action, payload){
+  const res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+API_KEY,"apikey":API_KEY},body:JSON.stringify(Object.assign({action,password:PASSWORD},payload||{}))});
+  let d=null; try{ d=await res.json(); }catch(e){} return {status:res.status,data:d};
+}
+async function skyApi(payload){
+  const res=await fetch(SKY_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+API_KEY,"apikey":API_KEY},body:JSON.stringify(Object.assign({password:PASSWORD},payload||{}))});
+  let d=null; try{ d=await res.json(); }catch(e){} return {status:res.status,data:d};
+}
+async function tryLogin(pw, remember, silent){
+  const status=document.getElementById("loginStatus"); if(!silent) status.textContent="確認中…";
+  PASSWORD=pw;
+  let r; try{ r=await api("login"); }catch(e){ status.textContent="接続できませんでした"; PASSWORD=null; return false; }
+  if(r.status===200 && r.data?.ok){ if(remember && !SS.get(PW_SESSION)) LS.set(PW_KEY,pw); document.getElementById("loginOverlay").style.display="none"; renderShell(); loadBroadcasts(true); return true; }
+  PASSWORD=null; status.textContent=r.status===401?"パスワードが違います":"エラー（"+r.status+"）"; return false;
+}
+function doLogin(){ const pw=document.getElementById("loginPw").value; if(!pw) return; tryLogin(pw, document.getElementById("loginRemember").checked, false); }
+
+/* ---------- 期間の計算・整形 ---------- */
+function weekRange(){
+  const t=new Date(); t.setHours(0,0,0,0);
+  const toSun=(7-t.getDay())%7;              // 今度の（今日が日曜なら今日の）日曜
+  const start=new Date(t); start.setDate(t.getDate()+toSun);
+  const end=new Date(start); end.setDate(start.getDate()+6); end.setHours(23,59,59,999);
+  return {start,end};
+}
+function parseDt(s){ const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/); return m?new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]):null; }
+function filtered(){
+  let rows=allRows.map(r=>({...r,_dt:parseDt(r.datetime)})).filter(r=>r._dt);
+  rows.sort((a,b)=>a._dt-b._dt);
+  if(mode==="week"){ const {start,end}=weekRange(); rows=rows.filter(r=>r._dt>=start&&r._dt<=end); }
+  else if(mode==="upcoming"){ const t=new Date(); t.setHours(0,0,0,0); rows=rows.filter(r=>r._dt>=t); }
+  return rows;
+}
+function minTxt(r){ return r.minutes?`（${r.minutes}分）`:""; }
+function jimakuTxt(r){ return r.jimaku?" [字幕]":""; }
+function buildText(rows){
+  const name=CAST;
+  if(mode==="week"){
+    const {start,end}=weekRange();
+    const head=`🌸 今週のスカイステージ 📺 ${name} さん 出演放送 🌸\n（${start.getMonth()+1}/${start.getDate()}(${WD[start.getDay()]})〜${end.getMonth()+1}/${end.getDate()}(${WD[end.getDay()]})）\n\nCERCLE Mi-Sol-La 会員のみなさまへ✨\n今週の${name}さん出演・関連放送をまとめました。録画のご参考にどうぞ！\n`;
+    const tail=`\n\n──────────\n※放送日時は変更になる場合があります。最新はスカイステージ番組表でご確認ください。\n🎀 今週も一緒に応援していきましょう！`;
+    if(!rows.length) return head+"\n今週は対象の放送が見つかりませんでした。\n"+tail;
+    const lines=[]; let cur=null;
+    for(const r of rows){ const d=r._dt; const key=d.toDateString();
+      if(key!==cur){ cur=key; lines.push(`■ ${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`); }
+      lines.push(`　${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}〜 ${r.title}${minTxt(r)}${jimakuTxt(r)}`);
+    }
+    return head+"\n"+lines.join("\n")+tail;
+  }
+  const head=`🌸 スカイステージ ${name} さん 出演放送のお知らせ 🌸\n\nCERCLE Mi-Sol-La 会員のみなさまへ✨\n${name}さんが出演・関連する放送をまとめました。録画のご参考にどうぞ！\n`;
+  const tail=`\n\n──────────\n※放送日時は変更になる場合があります。最新はスカイステージ番組表でご確認ください。\n🎀 これからも一緒に応援していきましょう！`;
+  if(!rows.length) return head+"\n（対象の放送は見つかりませんでした）"+tail;
+  const body=rows.map(r=>{ const d=r._dt; return `📺 ${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]}) ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}〜 ${r.title}${minTxt(r)}${jimakuTxt(r)}`; }).join("\n");
+  return head+"\n"+body+tail;
+}
+
+/* ---------- 画面 ---------- */
+function renderShell(){
+  document.getElementById("app").innerHTML=`
+  <h2>スカイステージ 出演放送 → LINE配信文</h2>
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="seg" id="modeSeg">
+        <button data-m="week">今週分（日〜土）</button>
+        <button data-m="upcoming">今日以降すべて</button>
+        <button data-m="all">全期間</button>
+      </div>
+      <button class="btn ghost sm" onclick="loadBroadcasts(false)">🔄 最新を取得</button>
+    </div>
+    <div id="fetchInfo" class="muted" style="margin-top:6px"></div>
+  </div>
+  <div id="result"></div>`;
+  document.getElementById("modeSeg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; mode=b.dataset.m; render(); });
+  render();
+}
+async function loadBroadcasts(first){
+  if(loading) return; loading=true; setSync("🟡 取得中…");
+  document.getElementById("fetchInfo") && (document.getElementById("fetchInfo").textContent="スカイステージから取得しています…");
+  let r; try{ r=await skyApi({action:"list", name:CAST}); }catch(e){ loading=false; setSync("🔴 取得失敗"); renderError("接続できませんでした。時間をおいて「最新を取得」を押してください。"); return; }
+  loading=false;
+  if(r.status!==200 || !r.data?.ok){ setSync("🔴 取得失敗"); renderError(r.data?.error||("取得できませんでした（"+r.status+"）")); return; }
+  allRows=r.data.rows||[]; lastFetch=new Date(); setSync("🟢 取得済み");
+  render();
+}
+function renderError(msg){ const el=document.getElementById("result"); if(el) el.innerHTML=`<div class="notice ng">${esc(msg)}</div>`; }
+function render(){
+  document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.m===mode));
+  const fi=document.getElementById("fetchInfo");
+  if(fi) fi.textContent = lastFetch ? `取得: ${lastFetch.toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}　全${allRows.length}件` : "";
+  const el=document.getElementById("result"); if(!el) return;
+  if(!allRows.length){ el.innerHTML=`<div class="notice info">「最新を取得」で放送予定を読み込みます。</div>`; return; }
+  const rows=filtered();
+  const txt=buildText(rows);
+  // 参考リスト（日ごと）
+  let listHtml="", cur=null;
+  for(const r of rows){ const d=r._dt; const key=d.toDateString();
+    if(key!==cur){ cur=key; listHtml+=`<div class="daygroup">${d.getMonth()+1}/${d.getDate()}（${WD[d.getDay()]}）</div>`; }
+    listHtml+=`<div class="bc"><span class="t">${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}〜</span> ${esc(r.title)}${r.minutes?`<span class="muted">（${r.minutes}分）</span>`:""}${r.jimaku?`<span class="tag jimaku">字幕</span>`:""}</div>`;
+  }
+  if(!rows.length) listHtml=`<div class="muted" style="padding:6px">対象の放送はありません。</div>`;
+  el.innerHTML=`
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <b>LINE配信文（このままコピーできます）</b>
+      <button class="btn sm" onclick="copyDraft()">📋 コピー</button>
+    </div>
+    <textarea id="draft" rows="16" style="margin-top:8px">${esc(txt)}</textarea>
+    <p class="muted" style="margin-top:6px">文面はここで直接直せます。コピーしてLINEに貼り付けてください。対象 ${rows.length}件。</p>
+  </div>
+  <div class="card">
+    <b>放送一覧（参考）</b>
+    <div style="margin-top:6px">${listHtml}</div>
+  </div>`;
+}
+function copyDraft(){
+  const t=document.getElementById("draft"); if(!t) return;
+  const txt=t.value;
+  const done=()=>toast("コピーしました");
+  if(navigator.clipboard?.writeText){ navigator.clipboard.writeText(txt).then(done).catch(()=>{ t.select(); try{document.execCommand("copy");}catch(e){} done(); }); }
+  else { t.select(); try{document.execCommand("copy");}catch(e){} done(); }
+}
+
+/* ---------- 起動 ---------- */
+function goPortal(){ location.replace("./index.html"); }
+(async()=>{
+  const pw=SS.get(PW_SESSION)||LS.get(PW_KEY);
+  if(!pw){ if(/^https?:/.test(location.protocol)) goPortal(); return; }
+  const ok=await tryLogin(pw,true,true);
+  if(!ok){ LS.del(PW_KEY); SS.del(PW_SESSION); if(/^https?:/.test(location.protocol)) goPortal(); }
+})();
+</script>
+</body>
+</html>

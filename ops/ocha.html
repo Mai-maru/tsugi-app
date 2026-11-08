@@ -196,7 +196,7 @@ const SHARED_RO = ["shows","settings","applications"];
 const OWN_DOCS  = ["people","teaEvents","teaApps","teaLottery","teaCheckin","teaVenues"];
 const ALL_DOCS  = [...SHARED_RO, ...OWN_DOCS];
 const TYPE_LABEL = {guest:"お客様", staff:"スタッフ", member:"会員", family:"親類", other:"その他"};
-const DEFAULT_WEIGHTS = {guest:100, staff:80, family:70, member:40, other:20, year:5};
+const DEFAULT_WEIGHTS = {guest:100, staff:80, family:70, member:40, other:20, year:5, merchPer100:1};
 const DEFAULT_PHONE = "080-6262-7000";
 
 const DEFAULT_REMIND = `{代表者名}様
@@ -352,7 +352,8 @@ function fcYears(p){ let n=0; if(p.years&&typeof p.years==="object") n=Object.ke
 function personOf(id){ return id? D.people.find(p=>p.id===id) : null; }
 // お茶会では親類は前方に寄せないことが多い → 区分の表示（フラグ）は残し、点数は会員と同じに
 const OCHA_TYPE_AS={family:"member"};
-function scoreOfPerson(p){ const w=weights(); if(!p) return w.other||0; const t=OCHA_TYPE_AS[p.type]||p.type; return (w[t]??0)+fcYears(p)*(w.year||0)+(Number(p.bonus)||0); }
+function merchScoreOf(p){ const w=weights(); return Math.floor((Number(p&&p.merchTotal)||0)/100)*(w.merchPer100??1); }   // 物販100円=1スコア（累計）
+function scoreOfPerson(p){ const w=weights(); if(!p) return w.other||0; const t=OCHA_TYPE_AS[p.type]||p.type; return (w[t]??0)+fcYears(p)*(w.year||0)+(Number(p.bonus)||0)+merchScoreOf(p); }
 function findPersonMatch(name, phone, kana){
   const nk=nameKey(name); if(!nk) return null;
   let p=D.people.find(x=>nameKey(x.name)===nk); if(p) return p;

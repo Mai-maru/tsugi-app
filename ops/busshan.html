@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>CERCLE Mi-Sol-La 物販管理</title>
+<style>
+:root{
+  --bg:#faf7f4; --panel:#ffffff; --ink:#3a2e35; --sub:#8a7580;
+  --accent:#a4456e; --accent-soft:#f3dce6; --accent-deep:#7c2d52;
+  --gold:#b8963e; --gold-soft:#f5ecd7;
+  --ok:#2e8b57; --ok-soft:#ddf0e4; --ng:#c0392b; --ng-soft:#fbe3df;
+  --warn:#b8860b; --warn-soft:#faf0d2; --info:#4169aa; --info-soft:#e2eaf8;
+  --line:#e8dfe4; --radius:12px; --shadow:0 2px 10px rgba(90,50,70,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6}
+header{background:linear-gradient(135deg,#4a1f35 0%,#7c2d52 55%,#a4456e 100%);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:18px;font-weight:700;letter-spacing:.06em;font-family:"Yu Mincho","Hiragino Mincho ProN",serif}
+header a.home{color:#fff;text-decoration:none;font-size:12px;opacity:.85;border:1px solid rgba(255,255,255,.5);border-radius:99px;padding:2px 10px}
+#saveState{font-size:11.5px;opacity:.9;margin-left:auto}
+nav{display:flex;gap:2px;background:#fff;border-bottom:2px solid var(--accent-soft);padding:0 10px;overflow-x:auto;position:sticky;top:0;z-index:50}
+nav button{border:none;background:none;padding:11px 14px;font-size:14px;cursor:pointer;color:var(--sub);border-bottom:3px solid transparent;white-space:nowrap;font-family:inherit}
+nav button.active{color:var(--accent-deep);border-bottom-color:var(--accent);font-weight:700}
+main{max-width:1050px;margin:0 auto;padding:18px 16px 80px}
+.tab{display:none}.tab.active{display:block}
+h2{font-size:17px;color:var(--accent-deep);margin:4px 0 12px}
+h3{font-size:14.5px;color:var(--accent-deep);margin:12px 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.grow{flex:1 1 160px}
+label.fld{display:block;font-size:11.5px;color:var(--sub);margin-bottom:3px;font-weight:600}
+input[type=text],input[type=tel],input[type=number],input[type=date],input[type=password],input[type=search],select,textarea{
+  border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink);width:100%}
+textarea{resize:vertical}
+button.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13.5px;cursor:pointer;font-family:inherit;font-weight:600}
+button.btn:hover{opacity:.85}
+button.btn.ghost{background:#fff;color:var(--accent-deep);border:1px solid var(--accent)}
+button.btn.sm{padding:4px 10px;font-size:12px}
+button.btn.danger{background:#fff;color:var(--ng);border:1px solid var(--ng)}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap;margin:1px 2px 1px 0}
+.tag.guest{background:var(--gold-soft);color:#8a6d20}.tag.staff{background:var(--info-soft);color:var(--info)}
+.tag.member{background:var(--accent-soft);color:var(--accent-deep)}.tag.family{background:#e8e2f5;color:#5b4a9e}
+.tag.other{background:#eee;color:#777}.tag.none{background:#fff;color:#999;border:1px dashed #bbb}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}.tag.ng{background:var(--ng-soft);color:var(--ng)}
+.tag.warn{background:var(--warn-soft);color:#7a5a08}.tag.info{background:var(--info-soft);color:var(--info)}
+.tag.stores{background:#e2eaf8;color:#4169aa}.tag.paper{background:#f5ecd7;color:#8a6d20}.tag.merch{background:#e0f0e6;color:#2e8b57}
+.muted{color:var(--sub);font-size:12.5px}
+.notice{padding:9px 13px;border-radius:8px;font-size:13px;margin:8px 0}
+.notice.info{background:var(--info-soft);color:var(--info)}.notice.warn{background:var(--warn-soft);color:#7a5a08}.notice.ok{background:var(--ok-soft);color:var(--ok)}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat .n{font-size:22px;font-weight:700;color:var(--accent-deep)}
+.stat .l{font-size:12px;color:var(--sub)}
+table.list{width:100%;border-collapse:collapse;font-size:13px}
+table.list th{background:#f7f0f3;color:var(--accent-deep);text-align:left;padding:6px 8px;font-size:12px;white-space:nowrap}
+table.list td{border-bottom:1px solid var(--line);padding:6px 8px;vertical-align:top}
+table.list td.nw{white-space:nowrap}
+.tblwrap{overflow-x:auto}
+.cand{display:inline-block;margin:2px;padding:3px 9px;border:1px solid var(--accent-soft);border-radius:99px;background:#fff;cursor:pointer;font-size:12.5px}
+.cand:hover{background:var(--accent-soft)}
+#dialogHost .ov,#askHost .ov{position:fixed;inset:0;background:rgba(40,20,30,.45);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:4vh 10px;overflow-y:auto}
+.dlg{background:#fff;border-radius:14px;max-width:720px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25);overflow:hidden}
+.dlg-head{background:var(--accent-deep);color:#fff;padding:11px 16px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.dlg-head button{background:none;border:none;color:#fff;font-size:20px;cursor:pointer}
+.dlg-body{padding:14px 16px}
+#loginOverlay{position:fixed;inset:0;background:linear-gradient(135deg,#4a1f35,#a4456e);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+#loginOverlay .box{background:#fff;border-radius:16px;padding:26px 22px;max-width:360px;width:100%;text-align:center}
+#loginOverlay h1{font-family:"Yu Mincho",serif;color:var(--accent-deep);font-size:19px;margin-bottom:4px}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#3a2e35;color:#fff;padding:9px 16px;border-radius:99px;font-size:13px;display:none;z-index:150}
+</style>
+</head>
+<body>
+<div id="loginOverlay"><div class="box">
+  <h1>CERCLE Mi-Sol-La</h1>
+  <p class="muted" style="margin-bottom:14px">物販管理（取次システムと同じパスワード）</p>
+  <input type="password" id="loginPw" placeholder="パスワード" onkeydown="if(event.key==='Enter')doLogin()">
+  <label class="muted" style="display:block;margin:8px 0"><input type="checkbox" id="loginRemember" checked> ログイン状態を保持</label>
+  <button class="btn" style="width:100%" onclick="doLogin()">ログイン</button>
+  <p id="loginStatus" class="muted" style="margin-top:8px;color:var(--ng)"></p>
+</div></div>
+
+<header>
+  <a class="home" href="./index.html">← 運営アプリ</a>
+  <h1>物販管理</h1>
+  <span id="saveState"></span>
+</header>
+<nav id="mainNav">
+  <button data-tab="input" class="active">物販を記録</button>
+  <button data-tab="list">購入一覧</button>
+  <button data-tab="people">名簿別スコア</button>
+</nav>
+<main>
+  <section class="tab active" id="tab-input"></section>
+  <section class="tab" id="tab-list"></section>
+  <section class="tab" id="tab-people"></section>
+</main>
+<div id="toast"></div>
+<div id="dialogHost"></div>
+<div id="askHost"></div>
+
+<script>
+/* ================= 接続設定（ビルド時に注入） ================= */
+const API_URL = "https://arezgremacymxvqwhzrv.supabase.co/functions/v1/tsugi-api";
+const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyZXpncmVtYWN5bXh2cXdoenJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDYzNjMsImV4cCI6MjA5Nzg4MjM2M30.htZGTQQQi31Q_0jJOP-xKVXNdzyUdq8c0geitp-urqQ";
+const PW_KEY  = "isolla_tsugi_pw";     // 取次・お茶会管理と共通
+// 取次システムと共有する文書。settings=読み取りのみ。people=スコア土台(merchTotal)を書き込み。merchSales=物販の明細（このアプリが所有）
+const SHARED_RO = ["settings"];
+const OWN_DOCS  = ["people","merchSales"];
+const ALL_DOCS  = [...SHARED_RO, ...OWN_DOCS];
+const TYPE_LABEL = {guest:"お客様", staff:"スタッフ", member:"会員", family:"親類", other:"その他", student:"生徒"};
+// スコアの重み（取次・お茶会と同じ考え方）。merchPer100=物販100円あたりのスコア（既定1）
+const DEFAULT_WEIGHTS = {guest:100, student:90, staff:80, family:70, member:40, other:20, year:5, merchPer100:1};
+const CHANNELS = {stores:"STORES（オンライン）", paper:"用紙（現地）", other:"その他"};
+
+let D = {};
+let PASSWORD = null;
+let baseVer = {}, lastPushed = {}, dirty = new Set();
+let pushTimer=null, pushing=false, pollTimer=null;
+let pickedId = "";        // 入力フォームで選択中の名簿ID
+let listQ="", listCh="";  // 一覧のフィルタ
+
+window.__ime=false;
+document.addEventListener("compositionstart",()=>{ window.__ime=true; }, true);
+document.addEventListener("compositionend", e=>{ window.__ime=false; const t=e.target; if(t&&t.tagName==="INPUT") setTimeout(()=>{ try{ t.dispatchEvent(new Event("input",{bubbles:true})); }catch(_){} },0); }, true);
+const LS={get(k){try{return localStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{localStorage.setItem(k,v);}catch(e){}}, del(k){try{localStorage.removeItem(k);}catch(e){}}};
+const CLIENT_ID = (()=>{ let c=LS.get("tsugi_client"); if(!c){c=Math.random().toString(36).slice(2,8);LS.set("tsugi_client",c);} return c; })();
+
+/* ================= 共通 ================= */
+function uid(){ return Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
+function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function yen(n){ return Number(n||0).toLocaleString("ja-JP")+"円"; }
+const WD=["日","月","火","水","木","金","土"];
+function todayStr(){ const d=new Date(); const p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+function fmtShort(iso){ if(!iso) return ""; const d=new Date(iso+"T00:00:00"); return `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`; }
+function cleanName(s){ s=String(s??"").replace(/[　\s]+/g," ").trim(); const i=s.indexOf("様"); if(i>0) s=s.slice(0,i); return s.replace(/(さま|さん|殿)$/,"").trim(); }
+function nameKey(s){ return cleanName(s).normalize("NFKC").replace(/[　\s]/g,""); }
+function kanaKey(s){ return String(s??"").normalize("NFKC").replace(/[　\s]/g,"").replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)); }
+function phoneKey(s){ return String(s??"").replace(/\D/g,""); }
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",2200); }
+
+/* ================= スコア ================= */
+function weights(){ return Object.assign({}, DEFAULT_WEIGHTS, (D.settings||{}).weights||{}); }
+function fcYears(p){ let n=0; if(p.years&&typeof p.years==="object") n=Object.keys(p.years).filter(y=>p.years[y]).length; else n=Number(p.fcYears)||0; return n+(Number(p.extraYears)||0); }
+function merchScore(total){ const w=weights(); return Math.floor((Number(total)||0)/100)*(w.merchPer100??1); }
+function baseScore(p){ const w=weights(); if(!p) return w.other||0; return (w[p.type]??0)+fcYears(p)*(w.year||0)+(Number(p.bonus)||0); }
+function personOf(id){ return id? (D.people||[]).find(p=>p.id===id) : null; }
+function typeTag(p){ if(!p) return `<span class="tag none">名簿外</span>`; return `<span class="tag ${p.type}">${TYPE_LABEL[p.type]||p.type}${p.type==="member"?" "+fcYears(p)+"年":""}</span>`; }
+function findPersonMatch(name, phone, kana){
+  const nk=nameKey(name); if(!nk) return null;
+  let p=(D.people||[]).find(x=>nameKey(x.name)===nk); if(p) return p;
+  const pk=phoneKey(phone);
+  if(pk){ p=(D.people||[]).find(x=>phoneKey(x.phone)===pk && (!kana||!x.kana||kanaKey(x.kana)===kanaKey(kana))); if(p) return p; }
+  return null;
+}
+// 明細から各人の物販累計(merchTotal)を再計算して people に反映（取次・お茶会のスコア土台）
+function recomputeMerchTotals(){
+  const sum={};
+  for(const s of (D.merchSales||[])) if(s.personId) sum[s.personId]=(sum[s.personId]||0)+(Number(s.amount)||0);
+  for(const p of (D.people||[])){ const t=sum[p.id]||0; if(t) p.merchTotal=t; else if("merchTotal" in p) delete p.merchTotal; }
+}
+
+/* ================= API・同期 ================= */
+async function api(action, payload){
+  const res = await fetch(API_URL, {method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+API_KEY,"apikey":API_KEY},
+    body:JSON.stringify(Object.assign({action, password:PASSWORD}, payload||{}))});
+  let data=null; try{ data=await res.json(); }catch(e){}
+  return {status:res.status, data};
+}
+function setSync(st,msg){ const el=document.getElementById("saveState"); el.textContent=({ok:"🟢",saving:"🟡",offline:"🔴"}[st]||"")+" "+(msg||""); }
+async function tryLogin(pw, remember, silent){
+  const status=document.getElementById("loginStatus");
+  if(!silent) status.textContent="確認中…";
+  PASSWORD=pw;
+  let r; try{ r=await api("login"); }catch(e){ status.textContent="接続できませんでした"; PASSWORD=null; return false; }
+  if(r.status===200 && r.data?.ok){ if(remember && !SS.get(PW_SESSION)) LS.set(PW_KEY,pw); document.getElementById("loginOverlay").style.display="none"; await loadAll(); return true; }
+  PASSWORD=null; status.textContent = r.status===401?"パスワードが違います":"エラー（"+r.status+"）"; return false;
+}
+function doLogin(){ const pw=document.getElementById("loginPw").value; if(!pw) return; tryLogin(pw, document.getElementById("loginRemember").checked, false); }
+function emptyOf(n){ return n==="settings" ? {} : []; }
+async function loadAll(){
+  setSync("saving","読み込み中…");
+  const r=await api("get_state");
+  if(r.status!==200){ setSync("offline","読み込み失敗"); notify("読み込みに失敗しました。再読み込みしてください。"); return; }
+  for(const n of ALL_DOCS){ const doc=r.data.docs[n]; D[n]=doc?doc.data:emptyOf(n); if(D[n]==null) D[n]=emptyOf(n); baseVer[n]=doc?doc.version:0; lastPushed[n]=JSON.stringify(D[n]); }
+  setSync("ok","同期済み"); refresh(); startPolling();
+}
+function save(){
+  recomputeMerchTotals();
+  for(const n of OWN_DOCS){ if(JSON.stringify(D[n])!==lastPushed[n]) dirty.add(n); }
+  if(dirty.size){ clearTimeout(pushTimer); setSync("saving","保存中…"); pushTimer=setTimeout(pushDirty,500); }
+}
+async function pushDirty(){
+  if(pushing){ pushTimer=setTimeout(pushDirty,500); return; }
+  pushing=true;
+  try{
+    for(const n of [...dirty]){
+      const j=JSON.stringify(D[n]); let r;
+      try{ r=await api("save_doc",{name:n, data:D[n], baseVersion:baseVer[n]||0, client:CLIENT_ID}); }
+      catch(e){ setSync("offline","未同期（接続待ち）"); pushTimer=setTimeout(pushDirty,15000); return; }
+      if(r.status===200 && r.data?.ok){ baseVer[n]=r.data.version; lastPushed[n]=j; dirty.delete(n); }
+      else if(r.status===409 && r.data?.current){ const cur=r.data.current; notify("他の端末で更新されていたため最新を読み込み直します。直前の変更が反映されていない場合はご確認ください。"); D[n]=cur.data; baseVer[n]=cur.version; lastPushed[n]=JSON.stringify(cur.data); dirty.delete(n); refresh(); }
+      else { setSync("offline","保存エラー"); pushTimer=setTimeout(pushDirty,15000); return; }
+    }
+    if(dirty.size){ pushing=false; return pushDirty(); }
+    setSync("ok","同期済み "+new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}));
+  } finally { pushing=false; }
+}
+function startPolling(){
+  clearInterval(pollTimer);
+  pollTimer=setInterval(async()=>{
+    if(dirty.size||pushing||window.__ime) return;
+    let r; try{ r=await api("get_state"); }catch(e){ return; }
+    if(r.status!==200) return;
+    let changed=false;
+    for(const n of ALL_DOCS){ const doc=r.data.docs[n]; if(doc && doc.version>(baseVer[n]||0) && !dirty.has(n)){ D[n]=doc.data; baseVer[n]=doc.version; lastPushed[n]=JSON.stringify(doc.data); changed=true; } }
+    if(changed && !document.querySelector("#dialogHost .ov")){ refresh(); setSync("ok","同期済み（他端末の更新を反映）"); }
+  }, 40000);
+}
+
+/* ================= 物販を記録 ================= */
+function pickPerson(id){ const p=personOf(id); if(!p) return; pickedId=id;
+  document.getElementById("bs_name").value=p.name||""; const k=document.getElementById("bs_kana"); if(k)k.value=p.kana||"";
+  const ph=document.getElementById("bs_phone"); if(ph)ph.value=p.phone||""; renderMatch();
+}
+function clearPick(){ pickedId=""; renderMatch(); }
+function candidatesFor(name,kana){
+  const nk=nameKey(name), kk=kanaKey(kana||"");
+  if(!nk && !kk) return [];
+  return (D.people||[]).filter(p=> (nk && nameKey(p.name).includes(nk)) || (kk && p.kana && kanaKey(p.kana).includes(kk)) ).slice(0,6);
+}
+function renderMatch(){
+  const box=document.getElementById("matchBox"); if(!box) return;
+  const name=document.getElementById("bs_name").value, kana=document.getElementById("bs_kana").value, phone=document.getElementById("bs_phone").value;
+  let p = pickedId? personOf(pickedId) : findPersonMatch(name,phone,kana);
+  if(p && !pickedId){ /* 自動一致 */ }
+  if(p){
+    const cur=Number(p.merchTotal)||0;
+    box.innerHTML=`<div class="notice ok" style="margin:0">照合: <b>${esc(p.name)}</b>様 ${typeTag(p)}　現在の物販累計 <b>${yen(cur)}</b>（物販スコア ${merchScore(cur)}）${pickedId?` <a href="#" onclick="clearPick();return false" class="muted">選択解除</a>`:""}</div>`;
+  } else {
+    const cands=candidatesFor(name,kana);
+    box.innerHTML=`<div class="notice warn" style="margin:0">名簿で一致する方が見つかりません（このまま記録すると<b>名簿外</b>＝スコア加算なしになります）。${cands.length?`<div style="margin-top:4px">もしかして：${cands.map(c=>`<span class="cand" onclick="pickPerson('${c.id}')">${esc(c.name)}（${TYPE_LABEL[c.type]||c.type}）</span>`).join("")}</div>`:""}</div>`;
+  }
+}
+function renderInput(){
+  const el=document.getElementById("tab-input");
+  el.innerHTML=`<h2>物販を記録</h2>
+  <div class="card">
+    <div class="row">
+      <div style="flex:0 0 150px"><label class="fld">購入日</label><input type="date" id="bs_date" value="${todayStr()}"></div>
+      <div style="flex:0 0 190px"><label class="fld">購入チャネル</label><select id="bs_ch">${Object.entries(CHANNELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></div>
+      <div style="flex:0 0 150px"><label class="fld">金額（円）</label><input type="number" id="bs_amt" min="0" step="1" placeholder="例: 3000" onkeydown="if(event.key==='Enter')addSale()"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow"><label class="fld">購入者名</label><input type="text" id="bs_name" placeholder="お名前" oninput="if(window.__ime)return;pickedId='';renderMatch()"></div>
+      <div style="flex:0 0 150px"><label class="fld">ふりがな（任意）</label><input type="text" id="bs_kana" oninput="if(window.__ime)return;renderMatch()"></div>
+      <div style="flex:0 0 150px"><label class="fld">電話（任意）</label><input type="tel" id="bs_phone" oninput="if(window.__ime)return;renderMatch()"></div>
+    </div>
+    <div id="matchBox" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow"><label class="fld">メモ（任意）</label><input type="text" id="bs_note" placeholder="商品名・備考など"></div>
+      <div><button class="btn" onclick="addSale()">この内容で記録</button></div>
+    </div>
+    <p class="muted" style="margin-top:8px">物販スコア＝金額 ÷ 100 の切り捨て（100円で1スコア）。名簿で照合できた方のみ、お茶会の配席と取次の優先度に反映されます。</p>
+  </div>
+  <div class="card">
+    <div class="flex" style="justify-content:space-between">
+      <div><b>まとめて貼り付け取込</b><div class="muted">用紙記入分や、STORESの注文を「お名前と金額」でまとめて登録できます。</div></div>
+      <button class="btn ghost" onclick="openPasteImport()">貼り付けて取込</button>
+    </div>
+  </div>`;
+  renderMatch();
+}
+function addSale(){
+  const date=document.getElementById("bs_date").value||todayStr();
+  const ch=document.getElementById("bs_ch").value;
+  const amt=Math.round(Number(document.getElementById("bs_amt").value)||0);
+  const name=cleanName(document.getElementById("bs_name").value);
+  const kana=document.getElementById("bs_kana").value.trim();
+  const phone=document.getElementById("bs_phone").value.trim();
+  const note=document.getElementById("bs_note").value.trim();
+  if(!name){ toast("お名前を入力してください"); return; }
+  if(!(amt>0)){ toast("金額を入力してください"); return; }
+  let p = pickedId? personOf(pickedId) : findPersonMatch(name,phone,kana);
+  const rec={ id:uid(), date, channel:ch, amount:amt, name, kana:(p?.kana||kana||""), phone:(p?.phone||phone||""), personId:p?p.id:"", note, createdAt:Date.now(), by:CLIENT_ID };
+  (D.merchSales=D.merchSales||[]).push(rec);
+  save();
+  toast(p?`${p.name}様に ${yen(amt)} を記録（+${merchScore((Number(p.merchTotal)||0))}スコア）`:`名簿外として ${yen(amt)} を記録`);
+  // フォームを一部リセット
+  document.getElementById("bs_amt").value=""; document.getElementById("bs_name").value=""; document.getElementById("bs_kana").value=""; document.getElementById("bs_phone").value=""; document.getElementById("bs_note").value=""; pickedId="";
+  renderMatch();
+}
+/* ---------- まとめ貼り付け取込 ---------- */
+let pasteRows=[];
+function openPasteImport(){
+  showDialog("まとめて貼り付け取込", `
+    <p class="muted">1行＝1件。「お名前[タブ/カンマ]金額[タブ/カンマ]メモ」の形式。Excelやスプレッドシートからそのまま貼り付けできます。</p>
+    <div class="row" style="margin-top:8px">
+      <div style="flex:0 0 150px"><label class="fld">購入日</label><input type="date" id="pi_date" value="${todayStr()}"></div>
+      <div style="flex:0 0 190px"><label class="fld">チャネル</label><select id="pi_ch">${Object.entries(CHANNELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></div>
+    </div>
+    <label class="fld" style="margin-top:8px">貼り付け欄</label>
+    <textarea id="pi_txt" rows="6" placeholder="山田花子\t3000\nおかだみき,1500,ポーチ" oninput="if(window.__ime)return;parsePaste()"></textarea>
+    <div id="pi_prev" style="margin-top:10px"></div>
+    <div class="flex" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn ghost" onclick="closeDialog()">キャンセル</button>
+      <button class="btn" id="pi_go" onclick="commitPaste()" disabled>取り込む</button>
+    </div>`);
+}
+function parsePaste(){
+  const txt=document.getElementById("pi_txt").value;
+  pasteRows=[];
+  for(const line of txt.split(/\r?\n/)){
+    const t=line.trim(); if(!t) continue;
+    const cols=t.split(/[\t,，]/).map(s=>s.trim());
+    const name=cleanName(cols[0]||"");
+    const amt=Math.round(Number(String(cols[1]||"").replace(/[^\d.]/g,""))||0);
+    const note=cols.slice(2).join(" ").trim();
+    if(!name) continue;
+    const p=findPersonMatch(name,"","");
+    pasteRows.push({name, amount:amt, note, personId:p?p.id:"", person:p||null});
+  }
+  const prev=document.getElementById("pi_prev"); const go=document.getElementById("pi_go");
+  if(!pasteRows.length){ prev.innerHTML=`<p class="muted">（まだありません）</p>`; go.disabled=true; return; }
+  const bad=pasteRows.filter(r=>!(r.amount>0)).length, unmatched=pasteRows.filter(r=>!r.personId).length;
+  prev.innerHTML=`<div class="tblwrap"><table class="list"><thead><tr><th>お名前</th><th>照合</th><th style="text-align:right">金額</th><th>メモ</th></tr></thead><tbody>
+    ${pasteRows.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.person?typeTag(r.person):`<span class="tag none">名簿外</span>`}</td><td style="text-align:right">${r.amount>0?yen(r.amount):`<span class="tag ng">金額なし</span>`}</td><td>${esc(r.note)}</td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="muted" style="margin-top:6px">${pasteRows.length}件（名簿外 ${unmatched}件${bad?` / 金額不明 ${bad}件`:""}）。金額不明の行は取り込まれません。</div>`;
+  go.disabled = pasteRows.filter(r=>r.amount>0).length===0;
+}
+function commitPaste(){
+  const date=document.getElementById("pi_date").value||todayStr();
+  const ch=document.getElementById("pi_ch").value;
+  const rows=pasteRows.filter(r=>r.amount>0);
+  if(!rows.length){ toast("取り込める行がありません"); return; }
+  for(const r of rows){ const p=r.person; (D.merchSales=D.merchSales||[]).push({ id:uid(), date, channel:ch, amount:r.amount, name:r.name, kana:(p?.kana||""), phone:(p?.phone||""), personId:r.personId, note:r.note, createdAt:Date.now(), by:CLIENT_ID }); }
+  save(); closeDialog(); toast(`${rows.length}件を取り込みました`);
+}
+
+/* ================= 購入一覧 ================= */
+function salesSorted(){ return (D.merchSales||[]).slice().sort((a,b)=> (b.date||"").localeCompare(a.date||"") || (b.createdAt||0)-(a.createdAt||0)); }
+function renderList(){
+  const el=document.getElementById("tab-list");
+  let rows=salesSorted();
+  const total=rows.reduce((s,r)=>s+(Number(r.amount)||0),0);
+  const qk=nameKey(listQ);
+  let view=rows;
+  if(qk) view=view.filter(r=>nameKey(r.name).includes(qk));
+  if(listCh) view=view.filter(r=>r.channel===listCh);
+  el.innerHTML=`<h2>購入一覧 <span class="muted">全${rows.length}件・合計 ${yen(total)}</span></h2>
+  <div class="card"><div class="row">
+    <div class="grow"><label class="fld">お名前で検索</label><input type="search" id="lq" value="${esc(listQ)}" oninput="if(window.__ime)return;listQ=this.value;renderListKeep()"></div>
+    <div style="flex:0 0 190px"><label class="fld">チャネル</label><select onchange="listCh=this.value;renderList()"><option value="">すべて</option>${Object.entries(CHANNELS).map(([k,v])=>`<option value="${k}" ${listCh===k?"selected":""}>${v}</option>`).join("")}</select></div>
+  </div></div>
+  <div class="card" style="padding:0;overflow:hidden"><div class="tblwrap"><table class="list">
+    <thead><tr><th>購入日</th><th>購入者</th><th style="text-align:right">金額</th><th>チャネル</th><th>メモ</th><th></th></tr></thead><tbody>
+    ${view.slice(0,400).map(r=>{ const p=personOf(r.personId); return `<tr>
+      <td class="nw">${esc(fmtShort(r.date))}</td>
+      <td>${esc(r.name)}様 ${p?typeTag(p):`<span class="tag none">名簿外</span>`}</td>
+      <td class="nw" style="text-align:right">${yen(r.amount)}</td>
+      <td class="nw"><span class="tag ${r.channel}">${(CHANNELS[r.channel]||r.channel)}</span></td>
+      <td>${esc(r.note||"")}</td>
+      <td class="nw"><button class="btn sm ghost" onclick="editSale('${r.id}')">編集</button> <button class="btn sm danger" onclick="delSale('${r.id}')">削除</button></td>
+    </tr>`; }).join("")||`<tr><td colspan="6" class="muted" style="padding:12px">該当なし</td></tr>`}
+    </tbody></table></div></div>
+    ${view.length>400?`<p class="muted">先頭400件を表示中。検索で絞り込んでください。</p>`:""}`;
+}
+function renderListKeep(){ const s=document.activeElement; const pos=s?.selectionStart; renderList(); const i=document.getElementById("lq"); if(i){ i.focus(); try{i.setSelectionRange(pos,pos);}catch(e){} } }
+function editSale(id){
+  const r=(D.merchSales||[]).find(x=>x.id===id); if(!r) return;
+  showDialog("物販の編集", `
+    <div class="row">
+      <div style="flex:0 0 150px"><label class="fld">購入日</label><input type="date" id="es_date" value="${esc(r.date||todayStr())}"></div>
+      <div style="flex:0 0 190px"><label class="fld">チャネル</label><select id="es_ch">${Object.entries(CHANNELS).map(([k,v])=>`<option value="${k}" ${r.channel===k?"selected":""}>${v}</option>`).join("")}</select></div>
+      <div style="flex:0 0 150px"><label class="fld">金額（円）</label><input type="number" id="es_amt" value="${Number(r.amount)||0}"></div>
+    </div>
+    <div class="row" style="margin-top:10px"><div class="grow"><label class="fld">購入者名</label><input type="text" id="es_name" value="${esc(r.name||"")}"></div>
+      <div class="grow"><label class="fld">メモ</label><input type="text" id="es_note" value="${esc(r.note||"")}"></div></div>
+    <p class="muted" style="margin-top:6px">購入者名を変えると、名簿の再照合を行います。${personOf(r.personId)?`現在の照合: <b>${esc(personOf(r.personId).name)}</b>様`:`現在: <span class="tag none">名簿外</span>`}</p>
+    <div class="flex" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" onclick="closeDialog()">キャンセル</button><button class="btn" onclick="saveSaleEdit('${id}')">保存</button></div>`);
+}
+function saveSaleEdit(id){
+  const r=(D.merchSales||[]).find(x=>x.id===id); if(!r) return;
+  const name=cleanName(document.getElementById("es_name").value);
+  const amt=Math.round(Number(document.getElementById("es_amt").value)||0);
+  if(!name){ toast("お名前を入力してください"); return; }
+  if(!(amt>0)){ toast("金額を入力してください"); return; }
+  r.date=document.getElementById("es_date").value||todayStr();
+  r.channel=document.getElementById("es_ch").value;
+  r.amount=amt; r.note=document.getElementById("es_note").value.trim();
+  if(name!==r.name){ r.name=name; const p=findPersonMatch(name,r.phone,r.kana); r.personId=p?p.id:""; if(p){ r.kana=p.kana||r.kana; r.phone=p.phone||r.phone; } }
+  save(); closeDialog(); renderList(); toast("保存しました");
+}
+async function delSale(id){
+  const r=(D.merchSales||[]).find(x=>x.id===id); if(!r) return;
+  if(!await ask(`この記録を削除しますか？\n${esc(fmtShort(r.date))}　${esc(r.name)}様　${yen(r.amount)}`)) return;
+  D.merchSales=D.merchSales.filter(x=>x.id!==id); save(); renderList(); toast("削除しました");
+}
+
+/* ================= 名簿別スコア ================= */
+function renderPeople(){
+  const el=document.getElementById("tab-people");
+  const sum={}, cnt={};
+  for(const s of (D.merchSales||[])) if(s.personId){ sum[s.personId]=(sum[s.personId]||0)+(Number(s.amount)||0); cnt[s.personId]=(cnt[s.personId]||0)+1; }
+  const rows=Object.keys(sum).map(id=>({p:personOf(id), total:sum[id], count:cnt[id]})).filter(r=>r.p).sort((a,b)=>b.total-a.total);
+  const outTotal=(D.merchSales||[]).filter(s=>!s.personId).reduce((s,r)=>s+(Number(r.amount)||0),0);
+  const grand=(D.merchSales||[]).reduce((s,r)=>s+(Number(r.amount)||0),0);
+  el.innerHTML=`<h2>名簿別スコア</h2>
+  <div class="stats" style="margin-bottom:12px">
+    <div class="stat"><div class="n">${yen(grand)}</div><div class="l">物販の合計</div></div>
+    <div class="stat"><div class="n">${rows.length}名</div><div class="l">購入された会員・お客様</div></div>
+    <div class="stat"><div class="n">${yen(outTotal)}</div><div class="l">名簿外（スコア対象外）</div></div>
+  </div>
+  <div class="notice info">物販スコア＝累計金額 ÷ 100 の切り捨て（100円＝1スコア）。この物販スコアは、お茶会の配席と取次システムの優先度の両方に加算されます。</div>
+  <div class="card" style="padding:0;overflow:hidden"><div class="tblwrap"><table class="list">
+    <thead><tr><th>お名前</th><th>区分</th><th style="text-align:right">物販累計</th><th style="text-align:right">物販スコア</th><th style="text-align:right">件数</th><th style="text-align:right">基本スコア</th><th style="text-align:right">合計スコア</th></tr></thead><tbody>
+    ${rows.map(r=>{ const b=baseScore(r.p), m=merchScore(r.total); return `<tr>
+      <td>${esc(r.p.name)}様</td><td>${typeTag(r.p)}</td>
+      <td class="nw" style="text-align:right">${yen(r.total)}</td>
+      <td class="nw" style="text-align:right"><b>+${m}</b></td>
+      <td class="nw" style="text-align:right">${r.count}</td>
+      <td class="nw" style="text-align:right">${b}</td>
+      <td class="nw" style="text-align:right"><b>${b+m}</b></td>
+    </tr>`; }).join("")||`<tr><td colspan="7" class="muted" style="padding:12px">まだ物販の記録がありません</td></tr>`}
+    </tbody></table></div></div>`;
+}
+
+/* ================= ダイアログ ================= */
+function ask(msg){ return new Promise(res=>{ const h=document.getElementById("askHost");
+  h.innerHTML=`<div class="ov"><div class="dlg" style="max-width:420px"><div class="dlg-body"><div style="white-space:pre-wrap">${esc(msg)}</div>
+  <div class="flex" style="justify-content:flex-end;margin-top:14px"><button class="btn ghost" id="aNo">キャンセル</button><button class="btn" id="aYes">OK</button></div></div></div></div>`;
+  const done=v=>{ h.innerHTML=""; res(v); }; document.getElementById("aYes").onclick=()=>done(true); document.getElementById("aNo").onclick=()=>done(false); }); }
+function notify(msg){ const h=document.getElementById("askHost");
+  h.innerHTML=`<div class="ov"><div class="dlg" style="max-width:420px"><div class="dlg-body"><div style="white-space:pre-wrap">${esc(msg)}</div>
+  <div class="flex" style="justify-content:flex-end;margin-top:14px"><button class="btn" onclick="document.getElementById('askHost').innerHTML=''">OK</button></div></div></div></div>`; }
+function showDialog(title, body){ document.getElementById("dialogHost").innerHTML=`<div class="ov" onclick="if(event.target===this)closeDialog()"><div class="dlg"><div class="dlg-head"><span>${esc(title)}</span><button onclick="closeDialog()">×</button></div><div class="dlg-body">${body}</div></div></div>`; }
+function closeDialog(){ document.getElementById("dialogHost").innerHTML=""; }
+
+/* ================= タブ・起動 ================= */
+document.getElementById("mainNav").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  document.querySelectorAll("#mainNav button").forEach(x=>x.classList.toggle("active",x===b));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.id==="tab-"+b.dataset.tab));
+  refresh();
+});
+function currentTab(){ return document.querySelector("#mainNav button.active")?.dataset.tab; }
+function refresh(){ ({input:renderInput, list:renderList, people:renderPeople}[currentTab()]||(()=>{}))(); }
+
+const PW_SESSION="cercle_ops_pw";
+const SS={get(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}, del(k){try{sessionStorage.removeItem(k);}catch(e){}}};
+function goPortal(){ location.replace("./index.html"); }
+(async()=>{
+  const pw=SS.get(PW_SESSION)||LS.get(PW_KEY);
+  if(!pw){ if(/^https?:/.test(location.protocol)) goPortal(); return; }
+  const ok=await tryLogin(pw,true,true);
+  if(!ok){ LS.del(PW_KEY); SS.del(PW_SESSION); if(/^https?:/.test(location.protocol)) goPortal(); }
+})();
+</script>
+</body>
+</html>
