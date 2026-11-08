@@ -27,7 +27,7 @@ button.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;pad
 button.btn:hover{opacity:.88}
 button.btn.ghost{background:#fff;color:var(--accent-deep);border:1px solid var(--accent)}
 button.btn.sm{padding:5px 10px;font-size:12.5px}
-.seg{display:inline-flex;border:1px solid var(--accent);border-radius:8px;overflow:hidden}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--accent);border-radius:8px;overflow:hidden;max-width:100%}
 .seg button{border:none;background:#fff;color:var(--accent-deep);padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
 .seg button.on{background:var(--accent);color:#fff;font-weight:700}
 input[type=text],input[type=password]{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink)}
@@ -72,6 +72,7 @@ const PW_KEY  = "isolla_tsugi_pw";
 const CAST = "美空真瑠";
 let PASSWORD = null;
 let allRows = [], mode = "week", loading = false, lastFetch = null;
+let cStart = "", cEnd = "";   // 期間を指定（custom）の開始日・終了日
 
 const LS={get(k){try{return localStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{localStorage.setItem(k,v);}catch(e){}}, del(k){try{localStorage.removeItem(k);}catch(e){}}};
 const SS={get(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}, del(k){try{sessionStorage.removeItem(k);}catch(e){}}};
@@ -79,6 +80,8 @@ const PW_SESSION="cercle_ops_pw";
 const WD=["日","月","火","水","木","金","土"];
 function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",2200); }
+function todayStr(){ const d=new Date(); const p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+function addDays(s,n){ const d=new Date(s+"T00:00:00"); d.setDate(d.getDate()+n); const p=x=>String(x).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 function setSync(msg){ document.getElementById("saveState").textContent=msg||""; }
 
 async function api(action, payload){
@@ -112,6 +115,7 @@ function filtered(){
   rows.sort((a,b)=>a._dt-b._dt);
   if(mode==="week"){ const {start,end}=weekRange(); rows=rows.filter(r=>r._dt>=start&&r._dt<=end); }
   else if(mode==="upcoming"){ const t=new Date(); t.setHours(0,0,0,0); rows=rows.filter(r=>r._dt>=t); }
+  else if(mode==="custom"){ const s=cStart?new Date(cStart+"T00:00:00"):null, e=cEnd?new Date(cEnd+"T23:59:59"):null; rows=rows.filter(r=>(!s||r._dt>=s)&&(!e||r._dt<=e)); }
   return rows;
 }
 function minTxt(r){ return r.minutes?`（${r.minutes}分）`:""; }
@@ -120,8 +124,10 @@ function jimakuTxt(r){ return r.jimaku?" [字幕]":""; }
 function fmtRow(r){ const d=r._dt; return `📺 ${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]}) ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}〜 ${r.title}${minTxt(r)}${jimakuTxt(r)}`; }
 function buildText(rows){
   const now=new Date();
-  const period = (mode==="week") ? "今週" : "今後";
-  const head = `🌸 タカラヅカスカイステージ 真瑠くん出演情報 🌸\n（${now.getMonth()+1}月${now.getDate()}日 時点）\n\nCERCLE Mi-Sol-La 会員のみなさまへ✨\n真瑠くんがタカラヅカスカイステージで出演・関連する${period}の放送をまとめました。ご視聴・録画のご参考にぜひお役立てください！\n`;
+  const periodWord = (mode==="week") ? "今週の" : (mode==="custom" ? "" : "今後の");
+  let line2 = `（${now.getMonth()+1}月${now.getDate()}日 時点）`;
+  if(mode==="custom" && cStart && cEnd){ const s=new Date(cStart+"T00:00:00"), e=new Date(cEnd+"T00:00:00"); line2=`（${s.getMonth()+1}/${s.getDate()}〜${e.getMonth()+1}/${e.getDate()} の放送）`; }
+  const head = `🌸 タカラヅカスカイステージ 真瑠くん出演情報 🌸\n${line2}\n\nCERCLE Mi-Sol-La 会員のみなさまへ✨\n真瑠くんがタカラヅカスカイステージで出演・関連する${periodWord}放送をまとめました。ご視聴・録画のご参考にぜひお役立てください！\n`;
   const foot = `\n\n──────────\nご視聴後はぜひご感想をSNSなどにシェアして真瑠くんの出演番組を応援いただけますと幸いです😊\n※放送日時は変更になる場合があります。最新はスカイステージ番組表でご確認ください。\n※番組画面のアップロードなど著作権・肖像権侵害行為やネタバレ行為はなさらないよう十分ご注意ください。`;
   const body = rows.length ? rows.map(fmtRow).join("\n") : (mode==="week" ? "今週は対象の放送が見つかりませんでした。" : "（対象の放送は見つかりませんでした）");
   return head + "\n" + body + foot;
@@ -134,11 +140,17 @@ function renderShell(){
   <div class="card">
     <div class="row" style="justify-content:space-between">
       <div class="seg" id="modeSeg">
-        <button data-m="week">今週分（日〜土）</button>
-        <button data-m="upcoming">今日以降すべて</button>
+        <button data-m="week">今週（日〜土）</button>
+        <button data-m="upcoming">今日以降</button>
         <button data-m="all">全期間</button>
+        <button data-m="custom">期間を指定</button>
       </div>
       <button class="btn ghost sm" onclick="loadBroadcasts(false)">🔄 最新を取得</button>
+    </div>
+    <div id="customRow" class="row" style="margin-top:8px;display:none">
+      <div><label class="muted" style="font-size:11.5px">開始日</label><br><input type="date" id="cFrom" onchange="cStart=this.value;render()"></div>
+      <div><label class="muted" style="font-size:11.5px">終了日</label><br><input type="date" id="cTo" onchange="cEnd=this.value;render()"></div>
+      <div class="muted" style="font-size:12px">この期間に放送される分だけを一覧・配信文にします。</div>
     </div>
     <div id="fetchInfo" class="muted" style="margin-top:6px"></div>
   </div>
@@ -158,6 +170,16 @@ async function loadBroadcasts(first){
 function renderError(msg){ const el=document.getElementById("result"); if(el) el.innerHTML=`<div class="notice ng">${esc(msg)}</div>`; }
 function render(){
   document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.m===mode));
+  const cr=document.getElementById("customRow");
+  if(cr){ cr.style.display = mode==="custom" ? "flex" : "none";
+    if(mode==="custom"){
+      if(!cStart) cStart=todayStr();
+      if(!cEnd) cEnd=addDays(todayStr(),13);
+      const f=document.getElementById("cFrom"), t=document.getElementById("cTo");
+      if(f && f.value!==cStart) f.value=cStart;
+      if(t && t.value!==cEnd) t.value=cEnd;
+    }
+  }
   const fi=document.getElementById("fetchInfo");
   if(fi) fi.textContent = lastFetch ? `取得: ${lastFetch.toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}　全${allRows.length}件` : "";
   const el=document.getElementById("result"); if(!el) return;
